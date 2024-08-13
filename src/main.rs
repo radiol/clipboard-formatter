@@ -48,7 +48,10 @@ fn main() {
         let clipboard_content = ctx.get_contents().unwrap_or_default();
         let formatted_content = format_text(&clipboard_content, &replacements);
         if clipboard_content != formatted_content {
-            println!("Replace {} to {}", clipboard_content, formatted_content);
+            println!(
+                "Replace '{}' to '{}'.",
+                clipboard_content, formatted_content
+            );
             ctx.set_contents(formatted_content).unwrap();
         }
 

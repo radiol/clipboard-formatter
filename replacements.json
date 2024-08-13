@@ -2,5 +2,9 @@
   {
     "original": "CRLF",
     "replacement": "。"
+  },
+  {
+    "original": "：",
+    "replacement": ": "
   }
 ]
