@@ -61,3 +61,86 @@ fn main() {
         thread::sleep(Duration::from_secs(1));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Test for load_replacements
+    use std::fs::File;
+    use std::io::Write;
+
+    #[test]
+    fn test_load_replacements() {
+        let test_data = r#"
+        [
+            {"original": "foo", "replacement": "bar"},
+            {"original": "baz", "replacement": "qux"}
+        ]
+        "#;
+
+        // Create a test file
+        let file_path = "test_replacements.json";
+        let mut file = File::create(file_path).unwrap();
+        file.write_all(test_data.as_bytes()).unwrap();
+
+        let replacements = load_replacements(file_path);
+        assert_eq!(replacements.len(), 2);
+        assert_eq!(replacements[0].original, "foo");
+        assert_eq!(replacements[0].replacement, "bar");
+        assert_eq!(replacements[1].original, "baz");
+        assert_eq!(replacements[1].replacement, "qux");
+
+        // Remove the test file
+        fs::remove_file(file_path).unwrap();
+    }
+
+    // Test for format_text
+    #[test]
+    fn test_format_text() {
+        let replacements = vec![
+            Replacement {
+                original: "foo".to_string(),
+                replacement: "bar".to_string(),
+            },
+            Replacement {
+                original: "baz".to_string(),
+                replacement: "qux".to_string(),
+            },
+        ];
+
+        let input = "foo baz １２３４！";
+        let expected = "bar qux 1234!";
+        let formatted = format_text(input, &replacements);
+
+        assert_eq!(formatted, expected);
+    }
+
+    // Test for kill-zen-all
+    use clipboard::{ClipboardContext, ClipboardProvider};
+
+    #[test]
+    fn test_clipboard_integration() {
+        let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+        let original_text = "foo baz １２３４！";
+        ctx.set_contents(original_text.to_string()).unwrap();
+
+        let replacements = vec![
+            Replacement {
+                original: "foo".to_string(),
+                replacement: "bar".to_string(),
+            },
+            Replacement {
+                original: "baz".to_string(),
+                replacement: "qux".to_string(),
+            },
+        ];
+
+        let clipboard_content = ctx.get_contents().unwrap();
+        let formatted_content = format_text(&clipboard_content, &replacements);
+        ctx.set_contents(formatted_content.clone()).unwrap();
+
+        assert_eq!(formatted_content, "bar qux 1234!");
+        assert_eq!(ctx.get_contents().unwrap(), "bar qux 1234!");
+    }
+}
