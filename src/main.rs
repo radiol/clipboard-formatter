@@ -65,6 +65,7 @@ fn main() {
     }
 }
 
+// Test code
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,7 +101,8 @@ mod tests {
 
     // Test for format_text
     #[test]
-    fn test_format_text() {
+    fn test_format_text_with_exclusions() {
+        // 置換リスト
         let replacements = vec![
             Replacement {
                 original: "foo".to_string(),
@@ -112,9 +114,63 @@ mod tests {
             },
         ];
 
+        // 除外リスト
+        let exclusion_list = vec!['！', '？']; // 例: 全角の「！」「？」を除外
+
+        // テストケース
         let input = "foo baz １２３４！";
-        let expected = "bar qux 1234!";
-        let formatted = format_text(input, &replacements);
+        let expected = "bar qux 1234！"; // ！は除外されるので変換されない
+        let formatted = format_text(input, &replacements, &exclusion_list);
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_format_text_without_exclusions() {
+        // 置換リスト
+        let replacements = vec![
+            Replacement {
+                original: "foo".to_string(),
+                replacement: "bar".to_string(),
+            },
+            Replacement {
+                original: "baz".to_string(),
+                replacement: "qux".to_string(),
+            },
+        ];
+
+        // 除外リストなし
+        let exclusion_list = vec![];
+
+        // テストケース
+        let input = "foo baz １２３４？";
+        let expected = "bar qux 1234?"; // 全ての文字が変換される
+        let formatted = format_text(input, &replacements, &exclusion_list);
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_format_text_with_partial_exclusions() {
+        // 置換リスト
+        let replacements = vec![
+            Replacement {
+                original: "foo".to_string(),
+                replacement: "bar".to_string(),
+            },
+            Replacement {
+                original: "baz".to_string(),
+                replacement: "qux".to_string(),
+            },
+        ];
+
+        // 部分的な除外リスト
+        let exclusion_list = vec!['！']; // 例: 全角の「！」を除外
+
+        // テストケース
+        let input = "foo baz １２３４！？";
+        let expected = "bar qux 1234！？"; // ！は変換されず、？は変換される
+        let formatted = format_text(input, &replacements, &exclusion_list);
 
         assert_eq!(formatted, expected);
     }
