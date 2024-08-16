@@ -36,22 +36,18 @@ fn create_default_config() {
     }
     let replacement_path = config_dir.join("replacements.json");
     if !replacement_path.exists() {
-        let default_replacements = r#"
-        [
-            {"original": "CRLF", "replacement": "。"},
-            {"original": "，", "replacement": ", "}
-        ]
-        "#;
+        let default_replacements = r#"[
+  { "original": "CRLF", "replacement": "。" },
+  { "original": "，", "replacement": ", " }
+]"#;
         fs::write(&replacement_path, default_replacements)
             .expect("Failed to create default replacements file");
     }
     let exclusion_path = config_dir.join("exclusions.json");
     if !exclusion_path.exists() {
-        let default_exclusions = r#"
-        {
-            "exclude": ["　","！", "？",]
-        }
-        "#;
+        let default_exclusions = r#"{
+  "exclude": ["　", "！", "？"]
+}"#;
         fs::write(&exclusion_path, default_exclusions)
             .expect("Failed to create default exclusions file");
     }
@@ -90,13 +86,17 @@ fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]
 }
 fn main() {
     create_default_config();
-    let mut replacements = load_replacements("replacements.json");
-    let exclusion_list = load_exclusion_list("exclusions.json");
+
+    let replacement_path = get_config_dir().join("replacements.json");
+    let exclusion_path = get_config_dir().join("exclusions.json");
+
+    let mut replacements = load_replacements(replacement_path.to_str().unwrap());
+    let exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
     let (tx, rx) = channel();
     let config = Config::default().with_poll_interval(Duration::from_secs(2));
     let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
     watcher
-        .watch(Path::new("replacements.json"), RecursiveMode::NonRecursive)
+        .watch(&replacement_path, RecursiveMode::NonRecursive)
         .unwrap();
     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
 
@@ -114,9 +114,8 @@ fn main() {
         if rx.try_recv().is_ok() {
             println!("replacements.json has been modified.");
             println!("Reloading replacements...");
-            replacements = load_replacements("replacements.json");
+            replacements = load_replacements(replacement_path.to_str().unwrap());
         }
-
         thread::sleep(Duration::from_secs(1));
     }
 }
@@ -156,12 +155,10 @@ mod tests {
         // replacements.json の内容を検証
         let replacements_content =
             fs::read_to_string(&replacements_path).expect("Failed to read replacements.json");
-        let expected_replacements_content = r#"
-        [
-            {"original": "CRLF", "replacement": "。"},
-            {"original": "，", "replacement": ", "}
-        ]
-        "#
+        let expected_replacements_content = r#"[
+  { "original": "CRLF", "replacement": "。" },
+  { "original": "，", "replacement": ", " }
+]"#
         .trim(); // テスト用に改行とインデントを除去
 
         assert_eq!(replacements_content.trim(), expected_replacements_content);
@@ -169,11 +166,9 @@ mod tests {
         // exclusions.json の内容を検証
         let exclusions_content =
             fs::read_to_string(&exclusions_path).expect("Failed to read exclusions.json");
-        let expected_exclusions_content = r#"
-        {
-            "exclude": ["　","！", "？",]
-        }
-        "#
+        let expected_exclusions_content = r#"{
+  "exclude": ["　", "！", "？"]
+}"#
         .trim(); // テスト用に改行とインデントを除去
 
         assert_eq!(exclusions_content.trim(), expected_exclusions_content);
