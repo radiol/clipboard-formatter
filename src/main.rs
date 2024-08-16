@@ -1,8 +1,9 @@
 use clipboard::{ClipboardContext, ClipboardProvider};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
+use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
@@ -16,6 +17,16 @@ struct Replacement {
 #[derive(Debug, serde::Deserialize)]
 struct Exclusions {
     exclude: Vec<char>,
+}
+
+fn get_config_dir() -> PathBuf {
+    let config_dir = if let Some(config_dir) = env::var_os("XDG_CONFIG_HOME") {
+        PathBuf::from(config_dir)
+    } else {
+        let home_dir = env::var_os("HOME").expect("HOME is not set");
+        PathBuf::from(home_dir).join(".config")
+    };
+    config_dir.join("kill-zen-all")
 }
 
 fn load_replacements(file_path: &str) -> Vec<Replacement> {
