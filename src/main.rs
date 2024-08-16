@@ -8,6 +8,9 @@ use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
+const DEFAULT_REPLACEMENTS: &str = include_str!("default_replacements.json");
+const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
+
 #[derive(Debug, serde::Deserialize)]
 struct Replacement {
     original: String,
@@ -36,18 +39,13 @@ fn create_default_config() {
     }
     let replacement_path = config_dir.join("replacements.json");
     if !replacement_path.exists() {
-        let default_replacements = r#"[
-  { "original": "CRLF", "replacement": "。" },
-  { "original": "，", "replacement": ", " }
-]"#;
+        let default_replacements = DEFAULT_REPLACEMENTS;
         fs::write(&replacement_path, default_replacements)
             .expect("Failed to create default replacements file");
     }
     let exclusion_path = config_dir.join("exclusions.json");
     if !exclusion_path.exists() {
-        let default_exclusions = r#"{
-  "exclude": ["　", "！", "？"]
-}"#;
+        let default_exclusions = DEFAULT_EXCLUSIONS;
         fs::write(&exclusion_path, default_exclusions)
             .expect("Failed to create default exclusions file");
     }
