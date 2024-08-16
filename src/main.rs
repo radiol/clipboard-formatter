@@ -126,6 +126,61 @@ fn main() {
 mod tests {
     use super::*;
 
+    // Test for get_config_dir
+    use std::env;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn test_create_default_config() {
+        // 一時ディレクトリを作成
+        let temp_dir = tempdir().unwrap();
+        let temp_path = temp_dir.path().to_path_buf();
+
+        // 一時ディレクトリをXDG_CONFIG_HOMEに設定
+        env::set_var("XDG_CONFIG_HOME", &temp_path);
+
+        // create_default_config()を呼び出す
+        create_default_config();
+
+        // 設定ファイルが正しい場所に作成されたかを確認
+        let replacements_path = temp_path.join("kill-zen-all").join("replacements.json");
+        let exclusions_path = temp_path.join("kill-zen-all").join("exclusions.json");
+
+        assert!(
+            replacements_path.exists(),
+            "replacements.json が存在しません"
+        );
+        assert!(exclusions_path.exists(), "exclusions.json が存在しません");
+
+        // replacements.json の内容を検証
+        let replacements_content =
+            fs::read_to_string(&replacements_path).expect("Failed to read replacements.json");
+        let expected_replacements_content = r#"
+        [
+            {"original": "CRLF", "replacement": "。"},
+            {"original": "，", "replacement": ", "}
+        ]
+        "#
+        .trim(); // テスト用に改行とインデントを除去
+
+        assert_eq!(replacements_content.trim(), expected_replacements_content);
+
+        // exclusions.json の内容を検証
+        let exclusions_content =
+            fs::read_to_string(&exclusions_path).expect("Failed to read exclusions.json");
+        let expected_exclusions_content = r#"
+        {
+            "exclude": ["　","！", "？",]
+        }
+        "#
+        .trim(); // テスト用に改行とインデントを除去
+
+        assert_eq!(exclusions_content.trim(), expected_exclusions_content);
+
+        // 環境変数のクリーンアップ
+        env::remove_var("XDG_CONFIG_HOME");
+    }
     // Test for load_replacements
     use std::fs::File;
     use std::io::Write;
