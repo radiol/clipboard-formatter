@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# 1. cargo fmt -- --check
+echo "Running cargo fmt..."
+cargo fmt -- --check
+FMT_STATUS=$?
+
+if [ $FMT_STATUS -ne 0 ]; then
+    echo "Formatting issues detected. Please run 'cargo fmt' to fix them."
+    exit 1
+fi
+
+# 2. cargo clippy -- -D warnings
+echo "Running cargo clippy..."
+cargo clippy -- -D warnings
+CLIPPY_STATUS=$?
+
+if [ $CLIPPY_STATUS -ne 0 ]; then
+    echo "Linting issues detected. Please fix them."
+    exit 1
+fi
+
+# 3. cargo test
+echo "Running cargo test..."
+cargo test
+TEST_STATUS=$?
+
+if [ $TEST_STATUS -ne 0 ]; then
+    echo "Tests failed. Please fix the issues before pushing."
+    exit 1
+fi
+
+echo "All checks passed. Proceeding with push."

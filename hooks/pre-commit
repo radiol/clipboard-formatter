@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# 1. Run cargo fmt to format the code
+echo "Running cargo fmt..."
+cargo fmt
+
+FMT_STATUS=$?
+
+if [ $FMT_STATUS -ne 0 ]; then
+    echo "Failed to format the code. Please fix the issues."
+    exit 1
+fi
+
+# If cargo fmt succeeded, proceed with the commit
+echo "Code formatted successfully. Proceeding with commit."
