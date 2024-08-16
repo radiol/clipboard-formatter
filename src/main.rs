@@ -29,6 +29,34 @@ fn get_config_dir() -> PathBuf {
     config_dir.join("kill-zen-all")
 }
 
+fn create_default_config() {
+    let config_dir = get_config_dir();
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir).expect("Failed to create config directory");
+    }
+    let replacement_path = config_dir.join("replacements.json");
+    if !replacement_path.exists() {
+        let default_replacements = r#"
+        [
+            {"original": "CRLF", "replacement": "。"},
+            {"original": "，", "replacement": ", "}
+        ]
+        "#;
+        fs::write(&replacement_path, default_replacements)
+            .expect("Failed to create default replacements file");
+    }
+    let exclusion_path = config_dir.join("exclusions.json");
+    if !exclusion_path.exists() {
+        let default_exclusions = r#"
+        {
+            "exclude": ["　","！", "？",]
+        }
+        "#;
+        fs::write(&exclusion_path, default_exclusions)
+            .expect("Failed to create default exclusions file");
+    }
+}
+
 fn load_replacements(file_path: &str) -> Vec<Replacement> {
     let data = fs::read_to_string(file_path).expect("Failed to read file");
     serde_json::from_str(&data).expect("Failed to parse JSON")
@@ -61,6 +89,7 @@ fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]
     formatted_content
 }
 fn main() {
+    create_default_config();
     let mut replacements = load_replacements("replacements.json");
     let exclusion_list = load_exclusion_list("exclusions.json");
     let (tx, rx) = channel();
