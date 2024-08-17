@@ -67,6 +67,9 @@ jobs:
           path: artifacts/macos
       - name: Check file existence
         run: |
+          ls artifacts/ubuntu
+          ls artifacts/macos
+          ls artifacts/windows
           ls -R artifacts
             [ -f artifacts/ubuntu/kill-zen-all ] && echo "Ubuntu file exists" || echo "Ubuntu file missing"
             [ -f artifacts/windows/kill-zen-all.exe ] && echo "Windows file exists" || echo "Windows file missing"
@@ -75,8 +78,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/ubuntu/*
-            artifacts/windows/*
-            artifacts/macos/*
+            artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
