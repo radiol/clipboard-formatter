@@ -15,7 +15,7 @@ jobs:
       - name: Install build-essential
         run: |
           sudo apt update
-          sudo apt install build-essential
+          sudo apt install -y -q build-essential libxcb-shape0-dev libxcb-xfixes0-dev
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
