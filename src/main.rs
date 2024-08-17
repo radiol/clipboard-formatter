@@ -1,4 +1,6 @@
 use clipboard::{ClipboardContext, ClipboardProvider};
+use env_logger;
+use log::info;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
 use std::env;
@@ -42,7 +44,7 @@ fn create_default_config() {
         let default_replacements = DEFAULT_REPLACEMENTS;
         fs::write(&replacement_path, default_replacements)
             .expect("Failed to create default replacements file");
-        println!(
+        info!(
             "Created default replacements file: {}",
             replacement_path.to_str().unwrap()
         );
@@ -52,7 +54,7 @@ fn create_default_config() {
         let default_exclusions = DEFAULT_EXCLUSIONS;
         fs::write(&exclusion_path, default_exclusions)
             .expect("Failed to create default exclusions file");
-        println!(
+        info!(
             "Created default exclusions file: {}",
             exclusion_path.to_str().unwrap()
         );
@@ -97,6 +99,7 @@ fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]
     formatted_content
 }
 fn main() {
+    env_logger::init();
     create_default_config();
 
     let replacement_path = get_config_dir().join("replacements.json");
@@ -116,7 +119,7 @@ fn main() {
         let clipboard_content = ctx.get_contents().unwrap_or_default();
         let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list);
         if clipboard_content != formatted_content {
-            println!(
+            info!(
                 "Replace '{}' to '{}'.",
                 clipboard_content, formatted_content
             );
@@ -124,8 +127,8 @@ fn main() {
         }
 
         if rx.try_recv().is_ok() {
-            println!("replacements.json has been modified.");
-            println!("Reloading replacements...");
+            info!("replacements.json has been modified.");
+            info!("Reloading replacements...");
             replacements = load_replacements(replacement_path.to_str().unwrap());
         }
         thread::sleep(Duration::from_secs(1));
