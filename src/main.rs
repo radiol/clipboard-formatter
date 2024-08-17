@@ -362,6 +362,11 @@ mod tests {
 
     #[test]
     fn test_clipboard_integration() {
+        if std::env::var("CI").is_ok() {
+            // CI環境ではクリップボードを操作できないのでスキップ
+            // このテストはローカル環境でのみ実行される
+            return;
+        }
         let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
         let original_text = "foo baz １２３４！";
         ctx.set_contents(original_text.to_string()).unwrap();
