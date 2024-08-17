@@ -59,14 +59,20 @@ fn create_default_config() {
     }
 }
 
-fn load_replacements(file_path: &str) -> Vec<Replacement> {
+fn load_json<T>(file_path: &str) -> T
+where
+    T: serde::de::DeserializeOwned,
+{
     let data = fs::read_to_string(file_path).expect("Failed to read file");
     serde_json::from_str(&data).expect("Failed to parse JSON")
 }
 
+fn load_replacements(file_path: &str) -> Vec<Replacement> {
+    load_json(file_path)
+}
+
 fn load_exclusion_list(file_path: &str) -> Vec<char> {
-    let data = fs::read_to_string(file_path).expect("Failed to read file");
-    let exclusions: Exclusions = serde_json::from_str(&data).expect("Failed to parse JSON");
+    let exclusions: Exclusions = load_json(file_path);
     exclusions.exclude
 }
 
