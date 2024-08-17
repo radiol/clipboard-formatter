@@ -14,7 +14,9 @@
 
 **注意**: このアプリケーションは署名されていないため、macOSではGatekeeperによってブロックされます。下記の方法でbuildしてください。
 
-### Rustがインストールされている環境で、以下のコマンドを実行してビルドします。
+### cargo build
+
+Rustがインストールされている環境で、以下のコマンドを実行してビルドします。
 
 ```bash
 git clone https://github.com/yourusername/kill-zen-all.git
