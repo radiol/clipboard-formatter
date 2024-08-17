@@ -1,4 +1,6 @@
 [
+  { "original": "，", "replacement": ", " },
+  { "original": "．", "replacement": ". " },
   { "original": "CRLF", "replacement": "。" },
-  { "original": "，", "replacement": ", " }
+  { "original": "頚", "replacement": "頸" }
 ]

@@ -207,8 +207,10 @@ mod tests {
         let replacements_content =
             fs::read_to_string(&replacements_path).expect("Failed to read replacements.json");
         let expected_replacements_content = r#"[
+  { "original": "，", "replacement": ", " },
+  { "original": "．", "replacement": ". " },
   { "original": "CRLF", "replacement": "。" },
-  { "original": "，", "replacement": ", " }
+  { "original": "頚", "replacement": "頸" }
 ]"#
         .trim(); // テスト用に改行とインデントを除去
 
