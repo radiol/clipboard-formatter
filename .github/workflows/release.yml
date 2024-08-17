@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kill-zen-all-${{ matrix.os }}
-          path: target/${{ matrix.target }}/release/kill-zen-all${{ matrix.extension }}
+          path: target/${{ matrix.target }}/release/kill-zen-all-${{ matrix.os }}${{ matrix.extension }}
   release:
     permissions:
       contents: write
@@ -65,26 +65,12 @@ jobs:
         with:
           name: kill-zen-all-macos-latest
           path: artifacts/macos
-      - name: Check file existence
-        run: |
-          ls artifacts/ubuntu
-          ls artifacts/macos
-          ls artifacts/windows
-          ls -R artifacts
-            [ -f artifacts/ubuntu/kill-zen-all ] && echo "Ubuntu file exists" || echo "Ubuntu file missing"
-            [ -f artifacts/windows/kill-zen-all.exe ] && echo "Windows file exists" || echo "Windows file missing"
-            [ -f artifacts/macos/kill-zen-all ] && echo "macOS file exists" || echo "macOS file missing"
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
-          prerelease: false
-          generate_release_notes: true
           files: |
-            artifacts/**/*
-            upload_url: ${{ steps.create_release.outputs.upload_url }}
-        if: startsWith(github.ref, 'refs/tags/')
+            artifacts/ubuntu/*
+            artifacts/windows/*
+            artifacts/macos/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ACTIONS_STEP_DEBUG: true
