@@ -52,8 +52,9 @@ Windows向け(exe)はダブルクリックで起動できます。
 
 設定ファイルの保存場所は、以下の通りです：
 
-- XDG_CONFIG_HOMEが設定されていれば: `$XDG_CONFIG_HOME/kill-zen-all/`
-- Linux/MacOS: `~/.config/kill-zen-all/`
+- `XDG_CONFIG_HOME`が設定されていれば: `$XDG_CONFIG_HOME/kill-zen-all/`
+- Linux: `~/.config/kill-zen-all/`
+- MacOS: `/Users/{User}/Library/Application Support/kill-zen-all/`
 - Windows: `C:\Users\{User}\AppData\Roaming\kill-zen-all\`
 
 ### replacements.json
