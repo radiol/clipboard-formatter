@@ -45,6 +45,8 @@ jobs:
           name: kill-zen-all-${{ matrix.os }}
           path: target/${{ matrix.target }}/release/kill-zen-all${{ matrix.extension }}
   release:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     needs: build
     steps:
