@@ -109,12 +109,15 @@ fn main() {
     let exclusion_path = get_config_dir().join(EXCLUSIONS_FILE_NAME);
 
     let mut replacements = load_replacements(replacement_path.to_str().unwrap());
-    let exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+    let mut exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
     let (tx, rx) = channel();
     let config = Config::default().with_poll_interval(Duration::from_secs(2));
     let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
     watcher
         .watch(&replacement_path, RecursiveMode::NonRecursive)
+        .unwrap();
+    watcher
+        .watch(&exclusion_path, RecursiveMode::NonRecursive)
         .unwrap();
     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
 
@@ -129,10 +132,19 @@ fn main() {
             ctx.set_contents(formatted_content).unwrap();
         }
 
-        if rx.try_recv().is_ok() {
-            info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
-            info!("Reloading replacements...");
-            replacements = load_replacements(replacement_path.to_str().unwrap());
+        if let Ok(event) = rx.try_recv() {
+            event.iter().for_each(|event| {
+                if event.paths.contains(&replacement_path) {
+                    info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
+                    info!("Reloading replacements...");
+                    replacements = load_replacements(replacement_path.to_str().unwrap());
+                }
+                if event.paths.contains(&exclusion_path) {
+                    info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
+                    info!("Reloading exclusions...");
+                    exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+                }
+            });
         }
         thread::sleep(Duration::from_secs(1));
     }
