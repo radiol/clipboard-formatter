@@ -1,5 +1,5 @@
 use clipboard::{ClipboardContext, ClipboardProvider};
-use env_logger;
+use env_logger::Builder as EnvLoggerBuilder;
 use log::info;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
@@ -99,7 +99,7 @@ fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]
     formatted_content
 }
 fn main() {
-    env_logger::init();
+    EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     create_default_config();
 
     let replacement_path = get_config_dir().join("replacements.json");
