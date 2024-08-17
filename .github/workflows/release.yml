@@ -65,6 +65,12 @@ jobs:
         with:
           name: kill-zen-all-macos-latest
           path: artifacts/macos
+      - name: Check file existence
+        run: |
+          ls -R artifacts
+            [ -f artifacts/ubuntu/kill-zen-all ] && echo "Ubuntu file exists" || echo "Ubuntu file missing"
+            [ -f artifacts/windows/kill-zen-all.exe ] && echo "Windows file exists" || echo "Windows file missing"
+            [ -f artifacts/macos/kill-zen-all ] && echo "macOS file exists" || echo "macOS file missing"
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
