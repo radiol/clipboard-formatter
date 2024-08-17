@@ -83,7 +83,6 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/**/*
-            upload_url: ${{ steps.create_release.outputs.upload_url }}
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
