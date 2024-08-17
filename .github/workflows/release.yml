@@ -75,11 +75,16 @@ jobs:
             [ -f artifacts/windows/kill-zen-all.exe ] && echo "Windows file exists" || echo "Windows file missing"
             [ -f artifacts/macos/kill-zen-all ] && echo "macOS file exists" || echo "macOS file missing"
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
+          draft: true
+          prerelease: false
+          generate_release_notes: true
           files: |
             artifacts/**/*
+            upload_url: ${{ steps.create_release.outputs.upload_url }}
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ACTIONS_STEP_DEBUG: true
