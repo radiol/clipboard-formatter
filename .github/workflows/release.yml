@@ -69,8 +69,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/ubuntu/kill-zen-all
-            artifacts/windows/kill-zen-all.exe
-            artifacts/macos/kill-zen-all
+            artifacts/ubuntu/*
+            artifacts/windows/*
+            artifacts/macos/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
