@@ -1,0 +1,53 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*" # タグが 'v' で始まる場合にトリガー
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            extension: ""
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+            extension: ".exe"
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            extension: ""
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - name: Install dependencies
+        run: cargo fetch
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: kill-zen-all-${{ matrix.os }}
+          path: target/${{ matrix.target }}/release/kill-zen-all${{ matrix.extension }}
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: artifacts/**
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
