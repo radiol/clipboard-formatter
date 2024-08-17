@@ -22,14 +22,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
-      # - name: Install build-essential
-      #   run: |
-      #     sudo apt update
-      #     sudo apt install -y -q \
-      #     build-essential \
-      #     libxcb-shape0-dev \
-      #     libxcb-xfixes0-dev \
-      #     gcc-mingw-w64-x86-64
+      - name: Install build-essential
+        if: matrix.os == "ubuntu-latest"
+        run: |
+          sudo apt update
+          sudo apt install -y -q \
+          build-essential \
+          libxcb-shape0-dev \
+          libxcb-xfixes0-dev
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
