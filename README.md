@@ -36,6 +36,12 @@ cargo build --release
 ./target/release/kill-zen-all
 ```
 
+Windows向け(exe)はダブルクリックで起動できます。
+
+### 終了
+
+`Ctrl + C`
+
 ## 設定ファイル
 
 `kill-zen-all`は、以下の2つのJSON設定ファイルを使用します。これらの設定ファイルはアプリケーション初回起動時にデフォルトで生成されます。
