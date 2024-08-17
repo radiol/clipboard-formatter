@@ -11,6 +11,7 @@
 ## インストール
 
 実行ファイルを[ Release ](https://github.com/radiol/kill-zen-all/releases)からダウンロードして実行
+
 **注意**: このアプリケーションは署名されていないため、macOSではGatekeeperによってブロックされます。下記の方法でbuildしてください。
 
 Rustがインストールされている環境で、以下のコマンドを実行してビルドします。
