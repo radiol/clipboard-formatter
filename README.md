@@ -42,9 +42,11 @@ cargo build --release
 
 ### 設定ファイルの位置
 
-- $XDG_CONFIG_HOME/kill-zen-all
+設定ファイルの保存場所は、以下の通りです：
+
+- XDG_CONFIG_HOMEが設定されていれば: `$XDG_CONFIG_HOME/kill-zen-all/`
 - Linux/MacOS: `~/.config/kill-zen-all/`
-- Windows: `C:\Users\{User}\AppData\Roaming\kill-zen-all`
+- Windows: `C:\Users\{User}\AppData\Roaming\kill-zen-all\`
 
 ### replacements.json
 
