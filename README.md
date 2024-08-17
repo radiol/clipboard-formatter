@@ -58,7 +58,7 @@ cargo build --release
 
 ### exclusions.json
 
-`exclusions.json`は、全角から半角に変換する際に除外する文字を定義します。以下はデフォルトの設定例です。
+`exclusions.json`は、全角から半角に変換する際に除外する文字を定義します。除外対象は全角で指定します。以下はデフォルトの設定例です。
 
 ```json
 {
