@@ -50,13 +50,27 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
-      - name: Download artifacts
+      - name: Download Ubuntu artifact
         uses: actions/download-artifact@v3
         with:
-          path: artifacts
+          name: kill-zen-all-ubuntu-latest
+          path: artifacts/ubuntu
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: kill-zen-all-windows-latest
+          path: artifacts/windows
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: kill-zen-all-macos-latest
+          path: artifacts/macos
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/**
+          files: |
+            artifacts/ubuntu/kill-zen-all
+            artifacts/windows/kill-zen-all.exe
+            artifacts/macos/kill-zen-all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
