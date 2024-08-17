@@ -38,8 +38,7 @@ fn get_config_dir() -> PathBuf {
     let config_dir = if let Some(config_dir) = env::var_os("XDG_CONFIG_HOME") {
         PathBuf::from(config_dir)
     } else {
-        let home_dir = env::var_os("HOME").expect("HOME is not set");
-        PathBuf::from(home_dir).join(".config")
+        dirs::config_dir().expect("Failed to get config directory")
     };
     config_dir.join("kill-zen-all")
 }
