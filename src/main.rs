@@ -3,8 +3,10 @@ use env_logger::Builder as EnvLoggerBuilder;
 use log::info;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
+use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::thread;
@@ -15,7 +17,7 @@ const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
 const REPLACEMENTS_FILE_NAME: &str = "replacements.json";
 const EXCLUSIONS_FILE_NAME: &str = "exclusions.json";
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Hash)]
 struct Replacement {
     original: String,
     replacement: String,
@@ -24,6 +26,12 @@ struct Replacement {
 #[derive(Debug, serde::Deserialize)]
 struct Exclusions {
     exclude: Vec<char>,
+}
+
+fn calculate_hash<T: Hash>(t: &T) -> u64 {
+    let mut s = DefaultHasher::new();
+    t.hash(&mut s);
+    s.finish()
 }
 
 fn get_config_dir() -> PathBuf {
@@ -121,6 +129,9 @@ fn main() {
         .unwrap();
     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
 
+    let mut previous_replacement_hash = calculate_hash(&replacements);
+    let mut previous_exclusion_hash = calculate_hash(&exclusion_list);
+
     loop {
         let clipboard_content = ctx.get_contents().unwrap_or_default();
         let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list);
@@ -135,14 +146,24 @@ fn main() {
         if let Ok(event) = rx.try_recv() {
             event.iter().for_each(|event| {
                 if event.paths.contains(&replacement_path) {
-                    info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
-                    info!("Reloading replacements...");
-                    replacements = load_replacements(replacement_path.to_str().unwrap());
+                    let new_replacements = load_replacements(replacement_path.to_str().unwrap());
+                    let new_replacement_hash = calculate_hash(&new_replacements);
+                    if previous_replacement_hash != new_replacement_hash {
+                        info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
+                        info!("Reloading replacements...");
+                        replacements = new_replacements;
+                        previous_replacement_hash = new_replacement_hash;
+                    }
                 }
                 if event.paths.contains(&exclusion_path) {
-                    info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
-                    info!("Reloading exclusions...");
-                    exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+                    let new_exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+                    let new_exclusion_hash = calculate_hash(&new_exclusion_list);
+                    if previous_exclusion_hash != new_exclusion_hash {
+                        info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
+                        info!("Reloading exclusions...");
+                        exclusion_list = new_exclusion_list;
+                        previous_exclusion_hash = new_exclusion_hash;
+                    }
                 }
             });
         }
