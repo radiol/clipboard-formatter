@@ -12,6 +12,8 @@ use std::time::Duration;
 
 const DEFAULT_REPLACEMENTS: &str = include_str!("default_replacements.json");
 const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
+const REPLACEMENTS_FILE_NAME: &str = "replacements.json";
+const EXCLUSIONS_FILE_NAME: &str = "exclusions.json";
 
 #[derive(Debug, serde::Deserialize)]
 struct Replacement {
@@ -39,7 +41,7 @@ fn create_default_config() {
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).expect("Failed to create config directory");
     }
-    let replacement_path = config_dir.join("replacements.json");
+    let replacement_path = config_dir.join(REPLACEMENTS_FILE_NAME);
     if !replacement_path.exists() {
         let default_replacements = DEFAULT_REPLACEMENTS;
         fs::write(&replacement_path, default_replacements)
@@ -49,7 +51,7 @@ fn create_default_config() {
             replacement_path.to_str().unwrap()
         );
     }
-    let exclusion_path = config_dir.join("exclusions.json");
+    let exclusion_path = config_dir.join(EXCLUSIONS_FILE_NAME);
     if !exclusion_path.exists() {
         let default_exclusions = DEFAULT_EXCLUSIONS;
         fs::write(&exclusion_path, default_exclusions)
@@ -98,12 +100,13 @@ fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]
         .to_string();
     formatted_content
 }
+
 fn main() {
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     create_default_config();
 
-    let replacement_path = get_config_dir().join("replacements.json");
-    let exclusion_path = get_config_dir().join("exclusions.json");
+    let replacement_path = get_config_dir().join(REPLACEMENTS_FILE_NAME);
+    let exclusion_path = get_config_dir().join(EXCLUSIONS_FILE_NAME);
 
     let mut replacements = load_replacements(replacement_path.to_str().unwrap());
     let exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
@@ -127,7 +130,7 @@ fn main() {
         }
 
         if rx.try_recv().is_ok() {
-            info!("replacements.json has been modified.");
+            info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
             info!("Reloading replacements...");
             replacements = load_replacements(replacement_path.to_str().unwrap());
         }
