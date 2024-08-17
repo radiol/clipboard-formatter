@@ -22,12 +22,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
+      - name: Install build-essential
+        run: |
+          sudo apt update
+          sudo apt install -y -q build-essential libxcb-shape0-dev libxcb-xfixes0-dev
       - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
-          override: true
+          targets: ${{ matrix.target }}
       - name: Install dependencies
         run: cargo fetch
       - name: Build
