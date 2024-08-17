@@ -42,12 +42,20 @@ fn create_default_config() {
         let default_replacements = DEFAULT_REPLACEMENTS;
         fs::write(&replacement_path, default_replacements)
             .expect("Failed to create default replacements file");
+        println!(
+            "Created default replacements file: {}",
+            replacement_path.to_str().unwrap()
+        );
     }
     let exclusion_path = config_dir.join("exclusions.json");
     if !exclusion_path.exists() {
         let default_exclusions = DEFAULT_EXCLUSIONS;
         fs::write(&exclusion_path, default_exclusions)
             .expect("Failed to create default exclusions file");
+        println!(
+            "Created default exclusions file: {}",
+            exclusion_path.to_str().unwrap()
+        );
     }
 }
 
