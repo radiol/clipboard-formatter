@@ -219,7 +219,7 @@ mod tests {
         let exclusions_content =
             fs::read_to_string(&exclusions_path).expect("Failed to read exclusions.json");
         let expected_exclusions_content = r#"{
-  "exclude": ["　", "！", "？"]
+  "exclude": ["　", "！", "？", "〜"]
 }"#
         .trim(); // テスト用に改行とインデントを除去
 
