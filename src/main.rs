@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
+use unicode_normalization::UnicodeNormalization;
 
 const DEFAULT_REPLACEMENTS: &str = include_str!("default_replacements.json");
 const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
@@ -84,7 +85,11 @@ fn load_replacements(file_path: &str) -> Vec<Replacement> {
 
 fn load_exclusion_list(file_path: &str) -> Vec<char> {
     let exclusions: Exclusions = load_json(file_path);
-    exclusions.exclude
+    exclusions
+        .exclude
+        .iter()
+        .map(|c| c.nfc().next().unwrap())
+        .collect()
 }
 
 fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]) -> String {
