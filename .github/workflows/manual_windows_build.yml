@@ -1,0 +1,25 @@
+name: Windows Build
+# 手動でワークフローを実行するためのトリガー
+on:
+  workflow_dispatch:
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-gnu
+      - name: Install dependencies
+        run: cargo fetch
+      - name: Build
+        run: cargo build --release --target x86_64-pc-windows-gnu
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kill-zen-all-windows
+          path: target/x86_64-pc-windows-gnu/release/kill-zen-all.exe
+          retention-days: 7 # アーティファクトの保存期間を1週間に設定
