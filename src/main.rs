@@ -1,8 +1,11 @@
+use anyhow::{Context, Result};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use env_logger::Builder as EnvLoggerBuilder;
 use log::info;
+use log::warn;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
+use std::char;
 use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::fs;
@@ -11,7 +14,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
-use unicode_normalization::UnicodeNormalization;
 
 const DEFAULT_REPLACEMENTS: &str = include_str!("default_replacements.json");
 const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
@@ -35,17 +37,17 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-fn get_config_dir() -> PathBuf {
+fn get_config_dir() -> Result<PathBuf> {
     let config_dir = if let Some(config_dir) = env::var_os("XDG_CONFIG_HOME") {
         PathBuf::from(config_dir)
     } else {
-        dirs::config_dir().expect("Failed to get config directory")
+        dirs::config_dir().context("Failed to get config directory")?
     };
-    config_dir.join("kill-zen-all")
+    Ok(config_dir.join("kill-zen-all"))
 }
 
-fn create_default_config() {
-    let config_dir = get_config_dir();
+fn create_default_config() -> Result<()> {
+    let config_dir = get_config_dir()?;
     if !config_dir.exists() {
         fs::create_dir_all(&config_dir).expect("Failed to create config directory");
     }
@@ -53,7 +55,7 @@ fn create_default_config() {
     if !replacement_path.exists() {
         let default_replacements = DEFAULT_REPLACEMENTS;
         fs::write(&replacement_path, default_replacements)
-            .expect("Failed to create default replacements file");
+            .context("Failed to create default replacements file")?;
         info!(
             "Created default replacements file: {}",
             replacement_path.to_str().unwrap()
@@ -63,65 +65,66 @@ fn create_default_config() {
     if !exclusion_path.exists() {
         let default_exclusions = DEFAULT_EXCLUSIONS;
         fs::write(&exclusion_path, default_exclusions)
-            .expect("Failed to create default exclusions file");
+            .context("Failed to create default exclusions file")?;
         info!(
             "Created default exclusions file: {}",
             exclusion_path.to_str().unwrap()
         );
     }
+    Ok(())
 }
 
-fn load_json<T>(file_path: &str) -> T
+fn load_json<T>(file_path: &str) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
-    let data = fs::read_to_string(file_path).expect("Failed to read file");
-    serde_json::from_str(&data).expect("Failed to parse JSON")
+    let data = fs::read_to_string(file_path)?;
+    serde_json::from_str(&data).context("Failed to parse JSON")
 }
 
-fn load_replacements(file_path: &str) -> Vec<Replacement> {
-    load_json(file_path)
+fn load_replacements(file_path: &str) -> Result<Vec<Replacement>> {
+    load_json::<Vec<Replacement>>(file_path).context("Failed to load replacements")
 }
 
-fn load_exclusion_list(file_path: &str) -> Vec<char> {
-    let exclusions: Exclusions = load_json(file_path);
-    exclusions
-        .exclude
-        .iter()
-        .map(|c| c.nfc().next().unwrap())
-        .collect()
+fn load_exclusion_list(file_path: &str) -> Result<Vec<char>> {
+    let exclusions: Exclusions = load_json(file_path)?;
+    Ok(exclusions.exclude)
 }
 
-fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]) -> String {
+fn format_text(
+    text: &str,
+    replacements: &[Replacement],
+    exclusion_list: &[char],
+) -> Result<String> {
     let mut formatted_content = text.to_string();
     for replacement in replacements {
         formatted_content =
             formatted_content.replace(&replacement.original, &replacement.replacement);
     }
-    let re = Regex::new(r"[！-～]").unwrap();
+    let re = Regex::new(r"[！-～]").context("Failed to create regex pattern")?;
     formatted_content = re
         .replace_all(&formatted_content, |caps: &regex::Captures| {
-            let c = caps[0].chars().next().unwrap();
+            let c = caps[0].chars().next().unwrap_or_default();
             if exclusion_list.contains(&c) {
                 c.to_string()
             } else {
-                let half_width_cahr = (c as u32 - 0xfee0) as u8 as char;
-                half_width_cahr.to_string()
+                let half_width_char = (c as u32 - 0xfee0) as u8 as char;
+                half_width_char.to_string()
             }
         })
         .to_string();
-    formatted_content
+    Ok(formatted_content)
 }
 
-fn main() {
+fn main() -> Result<()> {
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    create_default_config();
+    create_default_config()?;
 
-    let replacement_path = get_config_dir().join(REPLACEMENTS_FILE_NAME);
-    let exclusion_path = get_config_dir().join(EXCLUSIONS_FILE_NAME);
+    let replacement_path = get_config_dir()?.join(REPLACEMENTS_FILE_NAME);
+    let exclusion_path = get_config_dir()?.join(EXCLUSIONS_FILE_NAME);
 
-    let mut replacements = load_replacements(replacement_path.to_str().unwrap());
-    let mut exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+    let mut replacements = load_replacements(replacement_path.to_str().unwrap())?;
+    let mut exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap())?;
     let (tx, rx) = channel();
     let config = Config::default().with_poll_interval(Duration::from_secs(2));
     let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
@@ -136,9 +139,12 @@ fn main() {
     let mut previous_replacement_hash = calculate_hash(&replacements);
     let mut previous_exclusion_hash = calculate_hash(&exclusion_list);
 
+    let mut replacement_failed = false;
+    let mut exclusion_failed = false;
+
     loop {
         let clipboard_content = ctx.get_contents().unwrap_or_default();
-        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list);
+        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list)?;
         if clipboard_content != formatted_content {
             info!(
                 "Replace '{}' to '{}'.",
@@ -147,29 +153,47 @@ fn main() {
             ctx.set_contents(formatted_content).unwrap();
         }
 
-        if let Ok(event) = rx.try_recv() {
-            event.iter().for_each(|event| {
+        if let Ok(events) = rx.try_recv() {
+            for event in events.iter() {
                 if event.paths.contains(&replacement_path) {
-                    let new_replacements = load_replacements(replacement_path.to_str().unwrap());
+                    let Ok(new_replacements) =
+                        load_replacements(replacement_path.to_str().unwrap())
+                    else {
+                        if !replacement_failed {
+                            warn!("Failed to load replacements.")
+                        };
+                        replacement_failed = true;
+                        continue;
+                    };
                     let new_replacement_hash = calculate_hash(&new_replacements);
                     if previous_replacement_hash != new_replacement_hash {
                         info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
                         info!("Reloading replacements...");
                         replacements = new_replacements;
                         previous_replacement_hash = new_replacement_hash;
+                        replacement_failed = false;
                     }
                 }
                 if event.paths.contains(&exclusion_path) {
-                    let new_exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+                    let Ok(new_exclusion_list) =
+                        load_exclusion_list(exclusion_path.to_str().unwrap())
+                    else {
+                        if !exclusion_failed {
+                            warn!("Failed to load exclusions.");
+                        }
+                        exclusion_failed = true;
+                        continue;
+                    };
                     let new_exclusion_hash = calculate_hash(&new_exclusion_list);
                     if previous_exclusion_hash != new_exclusion_hash {
                         info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
                         info!("Reloading exclusions...");
                         exclusion_list = new_exclusion_list;
                         previous_exclusion_hash = new_exclusion_hash;
+                        exclusion_failed = false;
                     }
                 }
-            });
+            }
         }
         thread::sleep(Duration::from_secs(1));
     }
