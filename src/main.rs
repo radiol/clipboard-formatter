@@ -286,6 +286,36 @@ mod tests {
         fs::remove_file(file_path).unwrap();
     }
 
+    // Test for load_replacements with nonexistent file
+    #[test]
+    fn test_load_replacements_no_file() {
+        let file_path = "nonexistent.json";
+        let result = load_replacements(file_path);
+        assert!(result.is_err());
+    }
+
+    // Test for load_replacements with invalid JSON
+    #[test]
+    fn test_load_replacements_invalid_json() {
+        let test_data = r#"
+        [
+            {"original": "foo", "replacement": "bar"},
+            {"original": "baz", "replacement": "qux"}
+        "#;
+
+        // Create a test file
+        let file_path = "test_invalid_replacements.json";
+        let mut file = File::create(file_path).unwrap();
+        file.write_all(test_data.as_bytes()).unwrap();
+
+        let result = load_replacements(file_path);
+        println!("{:?}", result);
+        assert!(result.is_err());
+
+        // Remove the test file
+        fs::remove_file(file_path).unwrap();
+    }
+
     // Test for load_exclusion_list
     #[test]
     fn test_load_exclusion_list() {
@@ -304,6 +334,35 @@ mod tests {
         assert_eq!(exclusions.len(), 2);
         assert_eq!(exclusions[0], '！');
         assert_eq!(exclusions[1], '？');
+
+        // Remove the test file
+        fs::remove_file(file_path).unwrap();
+    }
+
+    // Test for load_exclusion_list with nonexistent file
+    #[test]
+    fn test_load_exclusion_list_no_file() {
+        let file_path = "nonexistent.json";
+        let result = load_exclusion_list(file_path);
+        assert!(result.is_err());
+    }
+
+    // Test for load_exclusion_list with invalid JSON
+    #[test]
+    fn test_load_exclusion_list_invalid_json() {
+        let test_data = r#"
+        {
+            "exclude": ["！", "？
+        }
+        "#;
+
+        // Create a test file
+        let file_path = "test_invalid_exclusions.json";
+        let mut file = File::create(file_path).unwrap();
+        file.write_all(test_data.as_bytes()).unwrap();
+
+        let result = load_exclusion_list(file_path);
+        assert!(result.is_err());
 
         // Remove the test file
         fs::remove_file(file_path).unwrap();
