@@ -219,7 +219,7 @@ mod tests {
         env::set_var("XDG_CONFIG_HOME", &temp_path);
 
         // create_default_config()を呼び出す
-        create_default_config();
+        create_default_config().unwrap();
 
         // 設定ファイルが正しい場所に作成されたかを確認
         let replacements_path = temp_path.join("kill-zen-all").join("replacements.json");
@@ -275,7 +275,7 @@ mod tests {
         let mut file = File::create(file_path).unwrap();
         file.write_all(test_data.as_bytes()).unwrap();
 
-        let replacements = load_replacements(file_path);
+        let replacements = load_replacements(file_path).unwrap();
         assert_eq!(replacements.len(), 2);
         assert_eq!(replacements[0].original, "foo");
         assert_eq!(replacements[0].replacement, "bar");
@@ -300,7 +300,7 @@ mod tests {
         let mut file = File::create(file_path).unwrap();
         file.write_all(test_data.as_bytes()).unwrap();
 
-        let exclusions = load_exclusion_list(file_path);
+        let exclusions = load_exclusion_list(file_path).unwrap();
         assert_eq!(exclusions.len(), 2);
         assert_eq!(exclusions[0], '！');
         assert_eq!(exclusions[1], '？');
@@ -311,7 +311,7 @@ mod tests {
 
     // Test for format_text
     #[test]
-    fn test_format_text_with_exclusions() {
+    fn test_format_text_with_replacements_exclusions() {
         // 置換リスト
         let replacements = vec![
             Replacement {
@@ -328,15 +328,15 @@ mod tests {
         let exclusion_list = vec!['！', '？']; // 例: 全角の「！」「？」を除外
 
         // テストケース
-        let input = "foo baz １２３４！";
-        let expected = "bar qux 1234！"; // ！は除外されるので変換されない
-        let formatted = format_text(input, &replacements, &exclusion_list);
+        let input = "foo baz １２３４！？";
+        let expected = "bar qux 1234！？"; // ！？は除外されるので変換されない
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
 
         assert_eq!(formatted, expected);
     }
 
     #[test]
-    fn test_format_text_without_exclusions() {
+    fn test_format_text_with_replacements_without_exclusions() {
         // 置換リスト
         let replacements = vec![
             Replacement {
@@ -353,9 +353,41 @@ mod tests {
         let exclusion_list = vec![];
 
         // テストケース
-        let input = "foo baz １２３４？";
-        let expected = "bar qux 1234?"; // 全ての文字が変換される
-        let formatted = format_text(input, &replacements, &exclusion_list);
+        let input = "foo baz １２３４！？";
+        let expected = "bar qux 1234!?"; // 全ての文字が変換される
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_format_text_without_replacements_with_exclusions() {
+        // 置換リストなし
+        let replacements = vec![];
+
+        // 除外リスト
+        let exclusion_list = vec!['！', '？']; // 例: 全角の「！」「？」を除外
+
+        // テストケース
+        let input = "foo baz １２３４！？";
+        let expected = "foo baz 1234！？"; // ！？は除外されるので変換されない
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_format_text_without_replacements_exclusions() {
+        // 置換リストなし
+        let replacements = vec![];
+
+        // 除外リストなし
+        let exclusion_list = vec![];
+
+        // テストケース
+        let input = "foo baz １２３４！？";
+        let expected = "foo baz 1234!?"; // 全ての文字が変換される
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
 
         assert_eq!(formatted, expected);
     }
@@ -380,7 +412,7 @@ mod tests {
         // テストケース
         let input = "foo baz １２３４！？";
         let expected = "bar qux 1234！?"; // ！は変換されず、？は変換される
-        let formatted = format_text(input, &replacements, &exclusion_list);
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
 
         assert_eq!(formatted, expected);
     }
@@ -412,7 +444,8 @@ mod tests {
         let exclusion_list = vec![];
 
         let clipboard_content = ctx.get_contents().unwrap();
-        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list);
+        let formatted_content =
+            format_text(&clipboard_content, &replacements, &exclusion_list).unwrap();
         ctx.set_contents(formatted_content.clone()).unwrap();
 
         assert_eq!(formatted_content, "bar qux 1234!");
