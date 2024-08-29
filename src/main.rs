@@ -34,6 +34,8 @@ struct Exclusions {
 
 #[derive(Debug, Error)]
 enum ClipboardError {
+    #[error("Failed to create clipboard provider: {0}")]
+    CreateContext(String),
     #[error("Failed to set clipboard contents: {0}")]
     SetContents(String),
     #[error("Failed to get clipboard contents: {0}")]
@@ -129,6 +131,24 @@ fn format_text(
     Ok(formatted_content)
 }
 
+fn create_clipboard_context() -> Result<ClipboardContext, ClipboardError> {
+    ClipboardContext::new().map_err(|e| ClipboardError::CreateContext(e.to_string()))
+}
+
+fn set_clipboard_contents(
+    ctx: &mut ClipboardContext,
+    content: String,
+) -> Result<(), ClipboardError> {
+    ctx.set_contents(content)
+        .map_err(|e| ClipboardError::SetContents(e.to_string()))?;
+    Ok(())
+}
+
+fn get_clipboard_contents(ctx: &mut ClipboardContext) -> Result<String, ClipboardError> {
+    ctx.get_contents()
+        .map_err(|e| ClipboardError::GetContents(e.to_string()))
+}
+
 fn main() -> Result<()> {
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     create_default_config()?;
@@ -156,7 +176,8 @@ fn main() -> Result<()> {
     watcher
         .watch(&exclusion_path, RecursiveMode::NonRecursive)
         .context("Failed to watch exclusions file")?;
-    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+    let mut ctx: ClipboardContext =
+        create_clipboard_context().context("Failed to create context")?;
 
     let mut previous_replacement_hash = calculate_hash(&replacements);
     let mut previous_exclusion_hash = calculate_hash(&exclusion_list);
@@ -165,14 +186,15 @@ fn main() -> Result<()> {
     let mut exclusion_failed = false;
 
     loop {
-        let clipboard_content = ctx.get_contents().unwrap_or_default();
+        let clipboard_content =
+            get_clipboard_contents(&mut ctx).context("Failed to get contents")?;
         let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list)?;
         if clipboard_content != formatted_content {
             info!(
                 "Replace '{}' to '{}'.",
                 clipboard_content, formatted_content
             );
-            ctx.set_contents(formatted_content).unwrap();
+            set_clipboard_contents(&mut ctx, formatted_content)?;
         }
 
         if let Ok(events) = rx.try_recv() {
