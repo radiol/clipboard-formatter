@@ -49,7 +49,7 @@ fn get_config_dir() -> Result<PathBuf> {
 fn create_default_config() -> Result<()> {
     let config_dir = get_config_dir()?;
     if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).expect("Failed to create config directory");
+        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
     }
     let replacement_path = config_dir.join(REPLACEMENTS_FILE_NAME);
     if !replacement_path.exists() {
