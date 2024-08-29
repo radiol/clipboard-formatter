@@ -58,7 +58,9 @@ fn create_default_config() -> Result<()> {
             .context("Failed to create default replacements file")?;
         info!(
             "Created default replacements file: {}",
-            replacement_path.to_str().unwrap()
+            replacement_path
+                .to_str()
+                .context("Failed to convert path to string")?
         );
     }
     let exclusion_path = config_dir.join(EXCLUSIONS_FILE_NAME);
@@ -68,7 +70,9 @@ fn create_default_config() -> Result<()> {
             .context("Failed to create default exclusions file")?;
         info!(
             "Created default exclusions file: {}",
-            exclusion_path.to_str().unwrap()
+            exclusion_path
+                .to_str()
+                .context("Failed to convert path to string")?
         );
     }
     Ok(())
@@ -123,17 +127,26 @@ fn main() -> Result<()> {
     let replacement_path = get_config_dir()?.join(REPLACEMENTS_FILE_NAME);
     let exclusion_path = get_config_dir()?.join(EXCLUSIONS_FILE_NAME);
 
-    let mut replacements = load_replacements(replacement_path.to_str().unwrap())?;
-    let mut exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap())?;
+    let mut replacements = load_replacements(
+        replacement_path
+            .to_str()
+            .context("Replacement path contains invalid UTF-8 characters")?,
+    )?;
+    let mut exclusion_list = load_exclusion_list(
+        exclusion_path
+            .to_str()
+            .context("Exclusion path contains invalid UTF-8 characters")?,
+    )?;
     let (tx, rx) = channel();
     let config = Config::default().with_poll_interval(Duration::from_secs(2));
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
+    let mut watcher: RecommendedWatcher =
+        Watcher::new(tx, config).context("Failed to initialize file watcher")?;
     watcher
         .watch(&replacement_path, RecursiveMode::NonRecursive)
-        .unwrap();
+        .context("Failed to watch replacements file")?;
     watcher
         .watch(&exclusion_path, RecursiveMode::NonRecursive)
-        .unwrap();
+        .context("Failed to watch exclusions file")?;
     let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
 
     let mut previous_replacement_hash = calculate_hash(&replacements);
@@ -156,9 +169,11 @@ fn main() -> Result<()> {
         if let Ok(events) = rx.try_recv() {
             for event in events.iter() {
                 if event.paths.contains(&replacement_path) {
-                    let Ok(new_replacements) =
-                        load_replacements(replacement_path.to_str().unwrap())
-                    else {
+                    let Ok(new_replacements) = load_replacements(
+                        replacement_path
+                            .to_str()
+                            .context("Failed to convert path to string")?,
+                    ) else {
                         if !replacement_failed {
                             warn!("Failed to load replacements.")
                         };
@@ -175,9 +190,11 @@ fn main() -> Result<()> {
                     }
                 }
                 if event.paths.contains(&exclusion_path) {
-                    let Ok(new_exclusion_list) =
-                        load_exclusion_list(exclusion_path.to_str().unwrap())
-                    else {
+                    let Ok(new_exclusion_list) = load_exclusion_list(
+                        exclusion_path
+                            .to_str()
+                            .context("Failed to convert path to string")?,
+                    ) else {
                         if !exclusion_failed {
                             warn!("Failed to load exclusions.");
                         }
