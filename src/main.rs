@@ -14,6 +14,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
+use thiserror::Error;
 
 const DEFAULT_REPLACEMENTS: &str = include_str!("default_replacements.json");
 const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
@@ -29,6 +30,14 @@ struct Replacement {
 #[derive(Debug, serde::Deserialize)]
 struct Exclusions {
     exclude: Vec<char>,
+}
+
+#[derive(Debug, Error)]
+enum ClipboardError {
+    #[error("Failed to set clipboard contents: {0}")]
+    SetContents(String),
+    #[error("Failed to get clipboard contents: {0}")]
+    GetContents(String),
 }
 
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
