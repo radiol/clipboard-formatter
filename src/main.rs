@@ -1,8 +1,11 @@
+use anyhow::{Context, Result};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use env_logger::Builder as EnvLoggerBuilder;
 use log::info;
+use log::warn;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
+use std::char;
 use std::collections::hash_map::DefaultHasher;
 use std::env;
 use std::fs;
@@ -11,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
-use unicode_normalization::UnicodeNormalization;
+use thiserror::Error;
 
 const DEFAULT_REPLACEMENTS: &str = include_str!("default_replacements.json");
 const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
@@ -29,147 +32,216 @@ struct Exclusions {
     exclude: Vec<char>,
 }
 
+#[derive(Debug, Error)]
+enum ClipboardError {
+    #[error("Failed to create clipboard provider: {0}")]
+    CreateContext(String),
+    #[error("Failed to set clipboard contents: {0}")]
+    SetContents(String),
+    #[error("Failed to get clipboard contents: {0}")]
+    GetContents(String),
+}
+
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
     s.finish()
 }
 
-fn get_config_dir() -> PathBuf {
+fn get_config_dir() -> Result<PathBuf> {
     let config_dir = if let Some(config_dir) = env::var_os("XDG_CONFIG_HOME") {
         PathBuf::from(config_dir)
     } else {
-        dirs::config_dir().expect("Failed to get config directory")
+        dirs::config_dir().context("Failed to get config directory")?
     };
-    config_dir.join("kill-zen-all")
+    Ok(config_dir.join("kill-zen-all"))
 }
 
-fn create_default_config() {
-    let config_dir = get_config_dir();
+fn create_default_config() -> Result<()> {
+    let config_dir = get_config_dir()?;
     if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).expect("Failed to create config directory");
+        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
     }
     let replacement_path = config_dir.join(REPLACEMENTS_FILE_NAME);
     if !replacement_path.exists() {
         let default_replacements = DEFAULT_REPLACEMENTS;
         fs::write(&replacement_path, default_replacements)
-            .expect("Failed to create default replacements file");
+            .context("Failed to create default replacements file")?;
         info!(
             "Created default replacements file: {}",
-            replacement_path.to_str().unwrap()
+            replacement_path
+                .to_str()
+                .context("Failed to convert path to string")?
         );
     }
     let exclusion_path = config_dir.join(EXCLUSIONS_FILE_NAME);
     if !exclusion_path.exists() {
         let default_exclusions = DEFAULT_EXCLUSIONS;
         fs::write(&exclusion_path, default_exclusions)
-            .expect("Failed to create default exclusions file");
+            .context("Failed to create default exclusions file")?;
         info!(
             "Created default exclusions file: {}",
-            exclusion_path.to_str().unwrap()
+            exclusion_path
+                .to_str()
+                .context("Failed to convert path to string")?
         );
     }
+    Ok(())
 }
 
-fn load_json<T>(file_path: &str) -> T
+fn load_json<T>(file_path: &str) -> Result<T>
 where
     T: serde::de::DeserializeOwned,
 {
-    let data = fs::read_to_string(file_path).expect("Failed to read file");
-    serde_json::from_str(&data).expect("Failed to parse JSON")
+    let data = fs::read_to_string(file_path)?;
+    serde_json::from_str(&data).context("Failed to parse JSON")
 }
 
-fn load_replacements(file_path: &str) -> Vec<Replacement> {
-    load_json(file_path)
+fn load_replacements(file_path: &str) -> Result<Vec<Replacement>> {
+    load_json::<Vec<Replacement>>(file_path).context("Failed to load replacements")
 }
 
-fn load_exclusion_list(file_path: &str) -> Vec<char> {
-    let exclusions: Exclusions = load_json(file_path);
-    exclusions
-        .exclude
-        .iter()
-        .map(|c| c.nfc().next().unwrap())
-        .collect()
+fn load_exclusion_list(file_path: &str) -> Result<Vec<char>> {
+    let exclusions: Exclusions = load_json(file_path)?;
+    Ok(exclusions.exclude)
 }
 
-fn format_text(text: &str, replacements: &[Replacement], exclusion_list: &[char]) -> String {
+fn format_text(
+    text: &str,
+    replacements: &[Replacement],
+    exclusion_list: &[char],
+) -> Result<String> {
     let mut formatted_content = text.to_string();
     for replacement in replacements {
         formatted_content =
             formatted_content.replace(&replacement.original, &replacement.replacement);
     }
-    let re = Regex::new(r"[！-～]").unwrap();
+    let re = Regex::new(r"[！-～]").context("Failed to create regex pattern")?;
     formatted_content = re
         .replace_all(&formatted_content, |caps: &regex::Captures| {
-            let c = caps[0].chars().next().unwrap();
+            let c = caps[0].chars().next().unwrap_or_default();
             if exclusion_list.contains(&c) {
                 c.to_string()
             } else {
-                let half_width_cahr = (c as u32 - 0xfee0) as u8 as char;
-                half_width_cahr.to_string()
+                let half_width_char = (c as u32 - 0xfee0) as u8 as char;
+                half_width_char.to_string()
             }
         })
         .to_string();
-    formatted_content
+    Ok(formatted_content)
 }
 
-fn main() {
+fn create_clipboard_context() -> Result<ClipboardContext, ClipboardError> {
+    ClipboardContext::new().map_err(|e| ClipboardError::CreateContext(e.to_string()))
+}
+
+fn set_clipboard_contents(
+    ctx: &mut ClipboardContext,
+    content: String,
+) -> Result<(), ClipboardError> {
+    ctx.set_contents(content)
+        .map_err(|e| ClipboardError::SetContents(e.to_string()))?;
+    Ok(())
+}
+
+fn get_clipboard_contents(ctx: &mut ClipboardContext) -> Result<String, ClipboardError> {
+    ctx.get_contents()
+        .map_err(|e| ClipboardError::GetContents(e.to_string()))
+}
+
+fn main() -> Result<()> {
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    create_default_config();
+    create_default_config()?;
 
-    let replacement_path = get_config_dir().join(REPLACEMENTS_FILE_NAME);
-    let exclusion_path = get_config_dir().join(EXCLUSIONS_FILE_NAME);
+    let replacement_path = get_config_dir()?.join(REPLACEMENTS_FILE_NAME);
+    let exclusion_path = get_config_dir()?.join(EXCLUSIONS_FILE_NAME);
 
-    let mut replacements = load_replacements(replacement_path.to_str().unwrap());
-    let mut exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+    let mut replacements = load_replacements(
+        replacement_path
+            .to_str()
+            .context("Replacement path contains invalid UTF-8 characters")?,
+    )?;
+    let mut exclusion_list = load_exclusion_list(
+        exclusion_path
+            .to_str()
+            .context("Exclusion path contains invalid UTF-8 characters")?,
+    )?;
     let (tx, rx) = channel();
     let config = Config::default().with_poll_interval(Duration::from_secs(2));
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
+    let mut watcher: RecommendedWatcher =
+        Watcher::new(tx, config).context("Failed to initialize file watcher")?;
     watcher
         .watch(&replacement_path, RecursiveMode::NonRecursive)
-        .unwrap();
+        .context("Failed to watch replacements file")?;
     watcher
         .watch(&exclusion_path, RecursiveMode::NonRecursive)
-        .unwrap();
-    let mut ctx: ClipboardContext = ClipboardProvider::new().unwrap();
+        .context("Failed to watch exclusions file")?;
+    let mut ctx: ClipboardContext =
+        create_clipboard_context().context("Failed to create context")?;
 
     let mut previous_replacement_hash = calculate_hash(&replacements);
     let mut previous_exclusion_hash = calculate_hash(&exclusion_list);
 
+    let mut replacement_failed = false;
+    let mut exclusion_failed = false;
+
     loop {
-        let clipboard_content = ctx.get_contents().unwrap_or_default();
-        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list);
+        let clipboard_content =
+            get_clipboard_contents(&mut ctx).context("Failed to get contents")?;
+        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list)?;
         if clipboard_content != formatted_content {
             info!(
                 "Replace '{}' to '{}'.",
                 clipboard_content, formatted_content
             );
-            ctx.set_contents(formatted_content).unwrap();
+            set_clipboard_contents(&mut ctx, formatted_content)?;
         }
 
-        if let Ok(event) = rx.try_recv() {
-            event.iter().for_each(|event| {
+        if let Ok(events) = rx.try_recv() {
+            for event in events.iter() {
                 if event.paths.contains(&replacement_path) {
-                    let new_replacements = load_replacements(replacement_path.to_str().unwrap());
+                    let Ok(new_replacements) = load_replacements(
+                        replacement_path
+                            .to_str()
+                            .context("Failed to convert path to string")?,
+                    ) else {
+                        if !replacement_failed {
+                            warn!("Failed to load replacements.")
+                        };
+                        replacement_failed = true;
+                        continue;
+                    };
                     let new_replacement_hash = calculate_hash(&new_replacements);
                     if previous_replacement_hash != new_replacement_hash {
                         info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
                         info!("Reloading replacements...");
                         replacements = new_replacements;
                         previous_replacement_hash = new_replacement_hash;
+                        replacement_failed = false;
                     }
                 }
                 if event.paths.contains(&exclusion_path) {
-                    let new_exclusion_list = load_exclusion_list(exclusion_path.to_str().unwrap());
+                    let Ok(new_exclusion_list) = load_exclusion_list(
+                        exclusion_path
+                            .to_str()
+                            .context("Failed to convert path to string")?,
+                    ) else {
+                        if !exclusion_failed {
+                            warn!("Failed to load exclusions.");
+                        }
+                        exclusion_failed = true;
+                        continue;
+                    };
                     let new_exclusion_hash = calculate_hash(&new_exclusion_list);
                     if previous_exclusion_hash != new_exclusion_hash {
                         info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
                         info!("Reloading exclusions...");
                         exclusion_list = new_exclusion_list;
                         previous_exclusion_hash = new_exclusion_hash;
+                        exclusion_failed = false;
                     }
                 }
-            });
+            }
         }
         thread::sleep(Duration::from_secs(1));
     }
@@ -195,7 +267,7 @@ mod tests {
         env::set_var("XDG_CONFIG_HOME", &temp_path);
 
         // create_default_config()を呼び出す
-        create_default_config();
+        create_default_config().unwrap();
 
         // 設定ファイルが正しい場所に作成されたかを確認
         let replacements_path = temp_path.join("kill-zen-all").join("replacements.json");
@@ -251,12 +323,42 @@ mod tests {
         let mut file = File::create(file_path).unwrap();
         file.write_all(test_data.as_bytes()).unwrap();
 
-        let replacements = load_replacements(file_path);
+        let replacements = load_replacements(file_path).unwrap();
         assert_eq!(replacements.len(), 2);
         assert_eq!(replacements[0].original, "foo");
         assert_eq!(replacements[0].replacement, "bar");
         assert_eq!(replacements[1].original, "baz");
         assert_eq!(replacements[1].replacement, "qux");
+
+        // Remove the test file
+        fs::remove_file(file_path).unwrap();
+    }
+
+    // Test for load_replacements with nonexistent file
+    #[test]
+    fn test_load_replacements_no_file() {
+        let file_path = "nonexistent.json";
+        let result = load_replacements(file_path);
+        assert!(result.is_err());
+    }
+
+    // Test for load_replacements with invalid JSON
+    #[test]
+    fn test_load_replacements_invalid_json() {
+        let test_data = r#"
+        [
+            {"original": "foo", "replacement": "bar"},
+            {"original": "baz", "replacement": "qux"}
+        "#;
+
+        // Create a test file
+        let file_path = "test_invalid_replacements.json";
+        let mut file = File::create(file_path).unwrap();
+        file.write_all(test_data.as_bytes()).unwrap();
+
+        let result = load_replacements(file_path);
+        println!("{:?}", result);
+        assert!(result.is_err());
 
         // Remove the test file
         fs::remove_file(file_path).unwrap();
@@ -276,7 +378,7 @@ mod tests {
         let mut file = File::create(file_path).unwrap();
         file.write_all(test_data.as_bytes()).unwrap();
 
-        let exclusions = load_exclusion_list(file_path);
+        let exclusions = load_exclusion_list(file_path).unwrap();
         assert_eq!(exclusions.len(), 2);
         assert_eq!(exclusions[0], '！');
         assert_eq!(exclusions[1], '？');
@@ -285,9 +387,38 @@ mod tests {
         fs::remove_file(file_path).unwrap();
     }
 
+    // Test for load_exclusion_list with nonexistent file
+    #[test]
+    fn test_load_exclusion_list_no_file() {
+        let file_path = "nonexistent.json";
+        let result = load_exclusion_list(file_path);
+        assert!(result.is_err());
+    }
+
+    // Test for load_exclusion_list with invalid JSON
+    #[test]
+    fn test_load_exclusion_list_invalid_json() {
+        let test_data = r#"
+        {
+            "exclude": ["！", "？
+        }
+        "#;
+
+        // Create a test file
+        let file_path = "test_invalid_exclusions.json";
+        let mut file = File::create(file_path).unwrap();
+        file.write_all(test_data.as_bytes()).unwrap();
+
+        let result = load_exclusion_list(file_path);
+        assert!(result.is_err());
+
+        // Remove the test file
+        fs::remove_file(file_path).unwrap();
+    }
+
     // Test for format_text
     #[test]
-    fn test_format_text_with_exclusions() {
+    fn test_format_text_with_replacements_exclusions() {
         // 置換リスト
         let replacements = vec![
             Replacement {
@@ -304,15 +435,15 @@ mod tests {
         let exclusion_list = vec!['！', '？']; // 例: 全角の「！」「？」を除外
 
         // テストケース
-        let input = "foo baz １２３４！";
-        let expected = "bar qux 1234！"; // ！は除外されるので変換されない
-        let formatted = format_text(input, &replacements, &exclusion_list);
+        let input = "foo baz １２３４！？";
+        let expected = "bar qux 1234！？"; // ！？は除外されるので変換されない
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
 
         assert_eq!(formatted, expected);
     }
 
     #[test]
-    fn test_format_text_without_exclusions() {
+    fn test_format_text_with_replacements_without_exclusions() {
         // 置換リスト
         let replacements = vec![
             Replacement {
@@ -329,9 +460,41 @@ mod tests {
         let exclusion_list = vec![];
 
         // テストケース
-        let input = "foo baz １２３４？";
-        let expected = "bar qux 1234?"; // 全ての文字が変換される
-        let formatted = format_text(input, &replacements, &exclusion_list);
+        let input = "foo baz １２３４！？";
+        let expected = "bar qux 1234!?"; // 全ての文字が変換される
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_format_text_without_replacements_with_exclusions() {
+        // 置換リストなし
+        let replacements = vec![];
+
+        // 除外リスト
+        let exclusion_list = vec!['！', '？']; // 例: 全角の「！」「？」を除外
+
+        // テストケース
+        let input = "foo baz １２３４！？";
+        let expected = "foo baz 1234！？"; // ！？は除外されるので変換されない
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_format_text_without_replacements_exclusions() {
+        // 置換リストなし
+        let replacements = vec![];
+
+        // 除外リストなし
+        let exclusion_list = vec![];
+
+        // テストケース
+        let input = "foo baz １２３４！？";
+        let expected = "foo baz 1234!?"; // 全ての文字が変換される
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
 
         assert_eq!(formatted, expected);
     }
@@ -356,7 +519,7 @@ mod tests {
         // テストケース
         let input = "foo baz １２３４！？";
         let expected = "bar qux 1234！?"; // ！は変換されず、？は変換される
-        let formatted = format_text(input, &replacements, &exclusion_list);
+        let formatted = format_text(input, &replacements, &exclusion_list).unwrap();
 
         assert_eq!(formatted, expected);
     }
@@ -388,7 +551,8 @@ mod tests {
         let exclusion_list = vec![];
 
         let clipboard_content = ctx.get_contents().unwrap();
-        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list);
+        let formatted_content =
+            format_text(&clipboard_content, &replacements, &exclusion_list).unwrap();
         ctx.set_contents(formatted_content.clone()).unwrap();
 
         assert_eq!(formatted_content, "bar qux 1234!");
