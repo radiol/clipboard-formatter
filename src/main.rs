@@ -145,15 +145,8 @@ fn set_clipboard_contents(
 }
 
 fn get_clipboard_contents(ctx: &mut ClipboardContext) -> Result<String, ClipboardError> {
-    match ctx.get_contents() {
-        Ok(content) => Ok(content),
-        Err(e) => {
-            if e.to_string().contains("returned empty") {
-                return Ok("".to_string());
-            }
-            Err(ClipboardError::GetContents(e.to_string()))
-        }
-    }
+    ctx.get_contents()
+        .map_err(|e| ClipboardError::GetContents(e.to_string()))
 }
 
 fn main() -> Result<()> {
