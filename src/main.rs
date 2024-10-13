@@ -132,7 +132,14 @@ fn format_text(
 }
 
 fn create_clipboard_context() -> Result<ClipboardContext, ClipboardError> {
-    ClipboardContext::new().map_err(|e| ClipboardError::CreateContext(e.to_string()))
+    let mut ctx =
+        ClipboardContext::new().map_err(|e| ClipboardError::CreateContext(e.to_string()))?;
+    if ctx.get_contents().is_err() && ctx.set_contents("".to_string()).is_err() {
+        return Err(ClipboardError::CreateContext(
+            "Failed to set empty contents".to_string(),
+        ));
+    };
+    Ok(ctx)
 }
 
 fn set_clipboard_contents(
@@ -145,15 +152,8 @@ fn set_clipboard_contents(
 }
 
 fn get_clipboard_contents(ctx: &mut ClipboardContext) -> Result<String, ClipboardError> {
-    match ctx.get_contents() {
-        Ok(content) => Ok(content),
-        Err(e) => {
-            if e.to_string().contains("returned empty") {
-                return Ok("".to_string());
-            }
-            Err(ClipboardError::GetContents(e.to_string()))
-        }
-    }
+    ctx.get_contents()
+        .map_err(|e| ClipboardError::GetContents(e.to_string()))
 }
 
 fn main() -> Result<()> {
