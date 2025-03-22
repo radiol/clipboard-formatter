@@ -193,18 +193,44 @@ fn main() -> Result<()> {
     let mut exclusion_failed = false;
 
     loop {
-        let clipboard_content =
-            get_clipboard_contents(&mut ctx).context("Failed to get contents")?;
-        let formatted_content = format_text(&clipboard_content, &replacements, &exclusion_list)?;
-        if clipboard_content != formatted_content {
-            info!(
-                "Replace '{}' to '{}'.",
-                clipboard_content, formatted_content
-            );
-            set_clipboard_contents(&mut ctx, formatted_content)?;
+        // Get clipboard content with better error handling
+        let clipboard_result = get_clipboard_contents(&mut ctx);
+        
+        if let Ok(clipboard_content) = clipboard_result {
+            // Only process if we successfully got clipboard content
+            if let Ok(formatted_content) = format_text(&clipboard_content, &replacements, &exclusion_list) {
+                if clipboard_content != formatted_content {
+                    info!(
+                        "Replace '{}' to '{}'.",
+                        clipboard_content, formatted_content
+                    );
+                    // Don't crash if setting clipboard fails
+                    if let Err(e) = set_clipboard_contents(&mut ctx, formatted_content) {
+                        warn!("Failed to set clipboard contents: {}", e);
+                    }
+                }
+            } else {
+                warn!("Failed to format clipboard text");
+            }
+        } else {
+            // If clipboard access fails, recreate the clipboard context
+            warn!("Failed to get clipboard contents, attempting to recreate context");
+            match create_clipboard_context() {
+                Ok(new_ctx) => {
+                    ctx = new_ctx;
+                    info!("Successfully recreated clipboard context");
+                }
+                Err(e) => {
+                    warn!("Failed to recreate clipboard context: {}", e);
+                    // Wait a bit longer before retrying when clipboard is inaccessible
+                    thread::sleep(Duration::from_secs(3));
+                }
+            }
         }
 
-        if let Ok(events) = rx.try_recv() {
+        // Check for file changes
+        match rx.try_recv() {
+            Ok(events) => {
             for event in events.iter() {
                 if event.paths.contains(&replacement_path) {
                     let Ok(new_replacements) = load_replacements(
@@ -249,7 +275,33 @@ fn main() -> Result<()> {
                     }
                 }
             }
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                // No events, continue normally
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                warn!("File watcher disconnected, attempting to reconnect");
+                // Try to recreate the watcher
+                match Watcher::new(tx.clone(), config.clone()) {
+                    Ok(new_watcher) => {
+                        watcher = new_watcher;
+                        // Re-watch the files
+                        if let Err(e) = watcher.watch(&replacement_path, RecursiveMode::NonRecursive) {
+                            warn!("Failed to watch replacements file: {}", e);
+                        }
+                        if let Err(e) = watcher.watch(&exclusion_path, RecursiveMode::NonRecursive) {
+                            warn!("Failed to watch exclusions file: {}", e);
+                        }
+                        info!("Successfully reconnected file watcher");
+                    }
+                    Err(e) => {
+                        warn!("Failed to recreate file watcher: {}", e);
+                    }
+                }
+            }
         }
+        
+        // Sleep to prevent high CPU usage
         thread::sleep(Duration::from_secs(1));
     }
 }
