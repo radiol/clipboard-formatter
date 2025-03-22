@@ -176,7 +176,7 @@ fn main() -> Result<()> {
     let (tx, rx) = channel();
     let config = Config::default().with_poll_interval(Duration::from_secs(2));
     let mut watcher: RecommendedWatcher =
-        Watcher::new(tx, config).context("Failed to initialize file watcher")?;
+        Watcher::new(tx.clone(), config).context("Failed to initialize file watcher")?;
     watcher
         .watch(&replacement_path, RecursiveMode::NonRecursive)
         .context("Failed to watch replacements file")?;
@@ -195,10 +195,12 @@ fn main() -> Result<()> {
     loop {
         // Get clipboard content with better error handling
         let clipboard_result = get_clipboard_contents(&mut ctx);
-        
+
         if let Ok(clipboard_content) = clipboard_result {
             // Only process if we successfully got clipboard content
-            if let Ok(formatted_content) = format_text(&clipboard_content, &replacements, &exclusion_list) {
+            if let Ok(formatted_content) =
+                format_text(&clipboard_content, &replacements, &exclusion_list)
+            {
                 if clipboard_content != formatted_content {
                     info!(
                         "Replace '{}' to '{}'.",
@@ -231,50 +233,50 @@ fn main() -> Result<()> {
         // Check for file changes
         match rx.try_recv() {
             Ok(events) => {
-            for event in events.iter() {
-                if event.paths.contains(&replacement_path) {
-                    let Ok(new_replacements) = load_replacements(
-                        replacement_path
-                            .to_str()
-                            .context("Failed to convert path to string")?,
-                    ) else {
-                        if !replacement_failed {
-                            warn!("Failed to load replacements.")
+                for event in events.iter() {
+                    if event.paths.contains(&replacement_path) {
+                        let Ok(new_replacements) = load_replacements(
+                            replacement_path
+                                .to_str()
+                                .context("Failed to convert path to string")?,
+                        ) else {
+                            if !replacement_failed {
+                                warn!("Failed to load replacements.")
+                            };
+                            replacement_failed = true;
+                            continue;
                         };
-                        replacement_failed = true;
-                        continue;
-                    };
-                    let new_replacement_hash = calculate_hash(&new_replacements);
-                    if previous_replacement_hash != new_replacement_hash {
-                        info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
-                        info!("Reloading replacements...");
-                        replacements = new_replacements;
-                        previous_replacement_hash = new_replacement_hash;
-                        replacement_failed = false;
-                    }
-                }
-                if event.paths.contains(&exclusion_path) {
-                    let Ok(new_exclusion_list) = load_exclusion_list(
-                        exclusion_path
-                            .to_str()
-                            .context("Failed to convert path to string")?,
-                    ) else {
-                        if !exclusion_failed {
-                            warn!("Failed to load exclusions.");
+                        let new_replacement_hash = calculate_hash(&new_replacements);
+                        if previous_replacement_hash != new_replacement_hash {
+                            info!("{} has been modified.", REPLACEMENTS_FILE_NAME);
+                            info!("Reloading replacements...");
+                            replacements = new_replacements;
+                            previous_replacement_hash = new_replacement_hash;
+                            replacement_failed = false;
                         }
-                        exclusion_failed = true;
-                        continue;
-                    };
-                    let new_exclusion_hash = calculate_hash(&new_exclusion_list);
-                    if previous_exclusion_hash != new_exclusion_hash {
-                        info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
-                        info!("Reloading exclusions...");
-                        exclusion_list = new_exclusion_list;
-                        previous_exclusion_hash = new_exclusion_hash;
-                        exclusion_failed = false;
+                    }
+                    if event.paths.contains(&exclusion_path) {
+                        let Ok(new_exclusion_list) = load_exclusion_list(
+                            exclusion_path
+                                .to_str()
+                                .context("Failed to convert path to string")?,
+                        ) else {
+                            if !exclusion_failed {
+                                warn!("Failed to load exclusions.");
+                            }
+                            exclusion_failed = true;
+                            continue;
+                        };
+                        let new_exclusion_hash = calculate_hash(&new_exclusion_list);
+                        if previous_exclusion_hash != new_exclusion_hash {
+                            info!("{} has been modified.", EXCLUSIONS_FILE_NAME);
+                            info!("Reloading exclusions...");
+                            exclusion_list = new_exclusion_list;
+                            previous_exclusion_hash = new_exclusion_hash;
+                            exclusion_failed = false;
+                        }
                     }
                 }
-            }
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {
                 // No events, continue normally
@@ -282,14 +284,17 @@ fn main() -> Result<()> {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 warn!("File watcher disconnected, attempting to reconnect");
                 // Try to recreate the watcher
-                match Watcher::new(tx.clone(), config.clone()) {
+                match Watcher::new(tx.clone(), config) {
                     Ok(new_watcher) => {
                         watcher = new_watcher;
                         // Re-watch the files
-                        if let Err(e) = watcher.watch(&replacement_path, RecursiveMode::NonRecursive) {
+                        if let Err(e) =
+                            watcher.watch(&replacement_path, RecursiveMode::NonRecursive)
+                        {
                             warn!("Failed to watch replacements file: {}", e);
                         }
-                        if let Err(e) = watcher.watch(&exclusion_path, RecursiveMode::NonRecursive) {
+                        if let Err(e) = watcher.watch(&exclusion_path, RecursiveMode::NonRecursive)
+                        {
                             warn!("Failed to watch exclusions file: {}", e);
                         }
                         info!("Successfully reconnected file watcher");
@@ -300,7 +305,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        
+
         // Sleep to prevent high CPU usage
         thread::sleep(Duration::from_secs(1));
     }
