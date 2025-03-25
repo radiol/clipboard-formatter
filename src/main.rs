@@ -216,7 +216,10 @@ fn main() -> Result<()> {
                 format_text(&clipboard_content, &replacements, &exclusion_list)
             {
                 if clipboard_content != formatted_content {
-                    info!("{}", highlight_diff(&clipboard_content, &formatted_content));
+                    info!(
+                        "Formatted\n{}",
+                        highlight_diff(&clipboard_content, &formatted_content)
+                    );
                     // Don't crash if setting clipboard fails
                     if let Err(e) = set_clipboard_contents(&mut ctx, formatted_content) {
                         warn!("Failed to set clipboard contents: {}", e);
