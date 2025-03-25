@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clipboard::{ClipboardContext, ClipboardProvider};
+use difference::{Changeset, Difference};
 use env_logger::Builder as EnvLoggerBuilder;
 use log::info;
 use log::warn;
@@ -156,6 +157,19 @@ fn get_clipboard_contents(ctx: &mut ClipboardContext) -> Result<String, Clipboar
         .map_err(|e| ClipboardError::GetContents(e.to_string()))
 }
 
+fn highlight_diff(original: &str, formatted: &str) -> String {
+    let changeset = Changeset::new(original, formatted, "");
+    let mut highlighted = String::new();
+    for change in changeset.diffs {
+        match change {
+            Difference::Same(s) => highlighted.push_str(&s),
+            Difference::Add(s) => highlighted.push_str(&format!("\x1b[32m{}\x1b[0m", s)),
+            Difference::Rem(s) => highlighted.push_str(&format!("\x1b[31m{}\x1b[0m", s)),
+        }
+    }
+    highlighted
+}
+
 fn main() -> Result<()> {
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     create_default_config()?;
@@ -202,10 +216,7 @@ fn main() -> Result<()> {
                 format_text(&clipboard_content, &replacements, &exclusion_list)
             {
                 if clipboard_content != formatted_content {
-                    info!(
-                        "\nOriginal:\n{}\nFormatted:\n{}",
-                        clipboard_content, formatted_content
-                    );
+                    info!("{}", highlight_diff(&clipboard_content, &formatted_content));
                     // Don't crash if setting clipboard fails
                     if let Err(e) = set_clipboard_contents(&mut ctx, formatted_content) {
                         warn!("Failed to set clipboard contents: {}", e);
