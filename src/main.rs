@@ -599,6 +599,46 @@ mod tests {
         assert_eq!(formatted, expected);
     }
 
+    // Test for highlight_diff
+    #[test]
+    fn test_diff_no_changes() {
+        let original = "This is a test.";
+        let formatted = "This is a test.";
+        let result = highlight_diff(original, formatted);
+        // 差分がない場合はそのままの文字列が返るはず
+        assert_eq!(result, "This is a test.");
+    }
+
+    #[test]
+    fn test_diff_with_addition() {
+        let original = "This is a test";
+        let formatted = "This is a test!";
+        let result = highlight_diff(original, formatted);
+        // 追加された「!」が緑色（ANSIエスケープシーケンスで囲まれている）で表示される
+        let expected = "This is a test\x1b[32m!\x1b[0m";
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_diff_with_removal() {
+        let original = "This is a test!";
+        let formatted = "This is a test";
+        let result = highlight_diff(original, formatted);
+        // 削除された「!」が赤色で表示される
+        let expected = "This is a test\x1b[31m!\x1b[0m";
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_diff_with_complex_changes() {
+        let original = "A string";
+        let formatted = "B string";
+        let result = highlight_diff(original, formatted);
+        // 変更された削除された'A'が赤色、追加された'B'が緑色で表示される
+        let expected = "\x1b[31mA\x1b[0m\x1b[32mB\x1b[0m string";
+        assert_eq!(result, expected);
+    }
+
     // Test for kill-zen-all
     use clipboard::{ClipboardContext, ClipboardProvider};
 
