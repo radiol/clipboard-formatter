@@ -203,7 +203,7 @@ fn main() -> Result<()> {
             {
                 if clipboard_content != formatted_content {
                     info!(
-                        "Replace '{}' to '{}'.",
+                        "\nOriginal:\n{}\nFormatted:\n{}",
                         clipboard_content, formatted_content
                     );
                     // Don't crash if setting clipboard fails
