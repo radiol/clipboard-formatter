@@ -22,6 +22,10 @@ const DEFAULT_EXCLUSIONS: &str = include_str!("default_exclusions.json");
 const REPLACEMENTS_FILE_NAME: &str = "replacements.json";
 const EXCLUSIONS_FILE_NAME: &str = "exclusions.json";
 
+fn show_self_version() {
+    println!("kill-zen-all v{}", env!("CARGO_PKG_VERSION"));
+}
+
 #[derive(Debug, serde::Deserialize, Hash)]
 struct Replacement {
     original: String,
@@ -171,6 +175,7 @@ fn highlight_diff(original: &str, formatted: &str) -> String {
 }
 
 fn main() -> Result<()> {
+    show_self_version();
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     create_default_config()?;
 
