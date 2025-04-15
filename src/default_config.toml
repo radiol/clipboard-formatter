@@ -1,0 +1,11 @@
+[app]
+clipboard_poll_interval_ms = 300
+
+[replacements]
+"，" = ", "
+"．" = ". "
+"CRLF" = "。"
+"頚" = "頸"
+
+[exclusions]
+exclude = ["　", "！", "？", "〜", "～"]
