@@ -1,6 +1,6 @@
-# Kill-Zen-All
+# Clipboard-Formatter
 
-`Kill-Zen-All`は、クリップボードにコピーされた文字列を監視し、指定されたパターンで自動的に文字列を置換・整形するツールです。このツールは、全角文字を半角に変換するなどの処理を行い、整形されたテキストをクリップボードに再度保存します。
+`Clipboard-Formatter`は、クリップボードにコピーされた文字列を監視し、指定されたパターンで自動的に文字列を置換・整形するツールです。このツールは、全角文字を半角に変換するなどの処理を行い、整形されたテキストをクリップボードに再度保存します。
 
 ## 特徴
 
@@ -10,7 +10,7 @@
 
 ## インストール
 
-### 実行ファイルを[Release](https://github.com/radiol/kill-zen-all/releases)からダウンロードして実行。
+### 実行ファイルを[Release](https://github.com/radiol/clipboard-formatter/releases)からダウンロードして実行。
 
 **注意**: このアプリケーションは署名されていないため、macOSではGatekeeperによってブロックされます。下記の方法でbuildしてください。
 
@@ -19,8 +19,8 @@
 Rustがインストールされている環境で、以下のコマンドを実行してビルドします。
 
 ```bash
-git clone https://github.com/yourusername/kill-zen-all.git
-cd kill-zen-all
+git clone https://github.com/yourusername/clipboard-formatter.git
+cd clipboard-formatter
 cargo build --release
 ```
 
@@ -35,7 +35,7 @@ cargo build --release
 ### 起動
 
 ```bash
-./target/release/kill-zen-all
+./target/release/clipboard-formatter
 ```
 
 Windows向け(exe)はダブルクリックで起動できます。
@@ -46,16 +46,16 @@ Windows向け(exe)はダブルクリックで起動できます。
 
 ## 設定ファイル
 
-`kill-zen-all`は、以下の2つのJSON設定ファイルを使用します。これらの設定ファイルはアプリケーション初回起動時にデフォルトで生成されます。
+`clipboard-formatter`は、以下の2つのJSON設定ファイルを使用します。これらの設定ファイルはアプリケーション初回起動時にデフォルトで生成されます。
 
 ### 設定ファイルの位置
 
 設定ファイルの保存場所は、以下の通りです：
 
-- `XDG_CONFIG_HOME`が設定されていれば: `$XDG_CONFIG_HOME/kill-zen-all/`
-- Linux: `~/.config/kill-zen-all/`
-- MacOS: `/Users/{User}/Library/Application Support/kill-zen-all/`
-- Windows: `C:\Users\{User}\AppData\Roaming\kill-zen-all\`
+- `XDG_CONFIG_HOME`が設定されていれば: `$XDG_CONFIG_HOME/clipboard-formatter/`
+- Linux: `~/.config/clipboard-formatter/`
+- MacOS: `/Users/{User}/Library/Application Support/clipboard-formatter/`
+- Windows: `C:\Users\{User}\AppData\Roaming\clipboard-formatter\`
 
 ### replacements.json
 

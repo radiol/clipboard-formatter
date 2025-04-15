@@ -43,12 +43,12 @@ jobs:
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
       - name: Rename build artifact with OS suffix
-        run: mv target/${{ matrix.target }}/release/kill-zen-all${{ matrix.extension }} target/${{ matrix.target }}/release/kill-zen-all${{ matrix.suffix }}${{ matrix.extension }}
+        run: mv target/${{ matrix.target }}/release/clipboard-formatter${{ matrix.extension }} target/${{ matrix.target }}/release/clipboard-formatter${{ matrix.suffix }}${{ matrix.extension }}
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kill-zen-all-${{ matrix.os }}
-          path: target/${{ matrix.target }}/release/kill-zen-all${{ matrix.suffix }}${{ matrix.extension }}
+          name: clipboard-formatter-${{ matrix.os }}
+          path: target/${{ matrix.target }}/release/clipboard-formatter${{ matrix.suffix }}${{ matrix.extension }}
   release:
     permissions:
       contents: write
@@ -58,17 +58,17 @@ jobs:
       - name: Download Ubuntu artifact
         uses: actions/download-artifact@v4
         with:
-          name: kill-zen-all-ubuntu-latest
+          name: clipboard-formatter-ubuntu-latest
           path: artifacts/ubuntu
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
         with:
-          name: kill-zen-all-windows-latest
+          name: clipboard-formatter-windows-latest
           path: artifacts/windows
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          name: kill-zen-all-macos-latest
+          name: clipboard-formatter-macos-latest
           path: artifacts/macos
       - name: Create GitHub Release
         id: create_release
@@ -79,8 +79,8 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
-            artifacts/ubuntu/kill-zen-all-linux
-            artifacts/windows/kill-zen-all-windows.exe
-            artifacts/macos/kill-zen-all-macos
+            artifacts/ubuntu/clipboard-formatter-linux
+            artifacts/windows/clipboard-formatter-windows.exe
+            artifacts/macos/clipboard-formatter-macos
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -23,7 +23,7 @@ const REPLACEMENTS_FILE_NAME: &str = "replacements.json";
 const EXCLUSIONS_FILE_NAME: &str = "exclusions.json";
 
 fn show_self_version() {
-    println!("kill-zen-all v{}", env!("CARGO_PKG_VERSION"));
+    println!("clipboard-formatter v{}", env!("CARGO_PKG_VERSION"));
 }
 
 #[derive(Debug, serde::Deserialize, Hash)]
@@ -59,7 +59,7 @@ fn get_config_dir() -> Result<PathBuf> {
     } else {
         dirs::config_dir().context("Failed to get config directory")?
     };
-    Ok(config_dir.join("kill-zen-all"))
+    Ok(config_dir.join("clipboard-formatter"))
 }
 
 fn create_default_config() -> Result<()> {
@@ -353,8 +353,8 @@ mod tests {
         create_default_config().unwrap();
 
         // 設定ファイルが正しい場所に作成されたかを確認
-        let replacements_path = temp_path.join("kill-zen-all").join("replacements.json");
-        let exclusions_path = temp_path.join("kill-zen-all").join("exclusions.json");
+        let replacements_path = temp_path.join("clipboard-formatter").join("replacements.json");
+        let exclusions_path = temp_path.join("clipboard-formatter").join("exclusions.json");
 
         assert!(
             replacements_path.exists(),
@@ -647,7 +647,7 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    // Test for kill-zen-all
+    // Test for clipboard-formatter
     use clipboard::{ClipboardContext, ClipboardProvider};
 
     #[test]
