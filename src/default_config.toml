@@ -1,12 +1,16 @@
+# Configuration file for the application
 [app]
 clipboard_poll_interval = 300
 config_reload_interval = 5000
 
+# 置換ルール
+# "original" = "replacement"
 [replacements]
 "，" = ", "
 "．" = ". "
 "CRLF" = "。"
 "頚" = "頸"
 
+# 半角変換の除外対象
 [exclusions]
 exclusions = ["　", "！", "？", "〜", "～"]
