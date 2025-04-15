@@ -1,5 +1,6 @@
 [app]
-clipboard_poll_interval_ms = 300
+clipboard_poll_interval = 300
+config_reload_interval = 5000
 
 [replacements]
 "，" = ", "
@@ -8,4 +9,4 @@ clipboard_poll_interval_ms = 300
 "頚" = "頸"
 
 [exclusions]
-exclude = ["　", "！", "？", "〜", "～"]
+exclusions = ["　", "！", "？", "〜", "～"]
