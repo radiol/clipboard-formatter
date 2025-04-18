@@ -19,7 +19,7 @@
 Rustがインストールされている環境で、以下のコマンドを実行してビルドします。
 
 ```bash
-git clone https://github.com/yourusername/clipboard-formatter.git
+git clone git@github.com:radiol/clipboard-formatter.git
 cd clipboard-formatter
 cargo build --release
 ```
