@@ -66,7 +66,10 @@ impl ConfigManager {
         let config_path = Self::get_config_path_static()?;
         Self::create_default_config(&config_path)?;
         let config = Self::load_config(&config_path)?;
-        Ok(Self { config_path, config })
+        Ok(Self {
+            config_path,
+            config,
+        })
     }
 
     fn get_config_path_static() -> Result<PathBuf> {
@@ -75,7 +78,9 @@ impl ConfigManager {
         } else {
             dirs::config_dir().context("Failed to get config directory")?
         };
-        Ok(config_dir.join("clipboard-formatter").join(CONFIG_FILE_NAME))
+        Ok(config_dir
+            .join("clipboard-formatter")
+            .join(CONFIG_FILE_NAME))
     }
 
     fn create_default_config(config_path: &Path) -> Result<()> {
@@ -144,8 +149,8 @@ struct ClipboardHandler {
 
 impl ClipboardHandler {
     fn new() -> Result<Self, ClipboardError> {
-        let mut ctx = ClipboardContext::new()
-            .map_err(|e| ClipboardError::CreateContext(e.to_string()))?;
+        let mut ctx =
+            ClipboardContext::new().map_err(|e| ClipboardError::CreateContext(e.to_string()))?;
         if ctx.get_contents().is_err() && ctx.set_contents("".to_string()).is_err() {
             return Err(ClipboardError::CreateContext(
                 "Failed to set empty contents".to_string(),
@@ -155,12 +160,14 @@ impl ClipboardHandler {
     }
 
     fn set_contents(&mut self, content: String) -> Result<(), ClipboardError> {
-        self.ctx.set_contents(content)
+        self.ctx
+            .set_contents(content)
             .map_err(|e| ClipboardError::SetContents(e.to_string()))
     }
 
     fn get_contents(&mut self) -> Result<String, ClipboardError> {
-        self.ctx.get_contents()
+        self.ctx
+            .get_contents()
             .map_err(|e| ClipboardError::GetContents(e.to_string()))
     }
 
@@ -170,8 +177,9 @@ impl ClipboardHandler {
             &clipboard_content,
             &config.replacements,
             config.exclusions.get("exclusions").unwrap_or(&vec![]),
-        ).map_err(|e| ClipboardError::GetContents(e.to_string()))?;
-        
+        )
+        .map_err(|e| ClipboardError::GetContents(e.to_string()))?;
+
         if clipboard_content != formatted_content {
             info!(
                 "Formatted\n{}",
@@ -199,30 +207,39 @@ fn highlight_diff(original: &str, formatted: &str) -> String {
 fn main() -> Result<()> {
     show_self_version();
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    
+
     let mut config_manager = ConfigManager::new()?;
-    let mut clipboard_handler = ClipboardHandler::new().context("Failed to create clipboard handler")?;
+    let mut clipboard_handler =
+        ClipboardHandler::new().context("Failed to create clipboard handler")?;
     let (tx, rx) = channel();
-    let _watcher = setup_file_watcher(config_manager.get_config_path(), config_manager.get_config(), tx)?;
-    
+    let _watcher = setup_file_watcher(
+        config_manager.get_config_path(),
+        config_manager.get_config(),
+        tx,
+    )?;
+
     let mut previous_clipboard_hash = 0u64;
-    
+
     loop {
         previous_clipboard_hash = handle_clipboard_processing(
             &mut clipboard_handler,
             config_manager.get_config(),
             previous_clipboard_hash,
         );
-        
+
         handle_config_reload(&mut config_manager, &rx);
-        
+
         thread::sleep(Duration::from_millis(
             config_manager.get_config().app.clipboard_poll_interval,
         ));
     }
 }
 
-fn setup_file_watcher(config_path: &Path, config: &AppConfig, tx: std::sync::mpsc::Sender<notify::Result<notify::Event>>) -> Result<RecommendedWatcher> {
+fn setup_file_watcher(
+    config_path: &Path,
+    config: &AppConfig,
+    tx: std::sync::mpsc::Sender<notify::Result<notify::Event>>,
+) -> Result<RecommendedWatcher> {
     let notify_config = Config::default()
         .with_poll_interval(Duration::from_millis(config.app.config_reload_interval));
     let mut watcher: RecommendedWatcher =
