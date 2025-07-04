@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
@@ -78,7 +78,7 @@ impl ConfigManager {
         Ok(config_dir.join("clipboard-formatter").join(CONFIG_FILE_NAME))
     }
 
-    fn create_default_config(config_path: &PathBuf) -> Result<()> {
+    fn create_default_config(config_path: &Path) -> Result<()> {
         let config_dir = config_path.parent().unwrap();
         if !config_dir.exists() {
             fs::create_dir_all(config_dir).context("Failed to create config directory")?;
@@ -90,7 +90,7 @@ impl ConfigManager {
         Ok(())
     }
 
-    fn load_config(config_path: &PathBuf) -> Result<AppConfig> {
+    fn load_config(config_path: &Path) -> Result<AppConfig> {
         let text = fs::read_to_string(config_path)?;
         toml::from_str(&text).context("Failed to parse config.toml")
     }
@@ -103,7 +103,7 @@ impl ConfigManager {
                 Ok(())
             }
             Err(e) => {
-                warn!("Failed to reload config.toml: {}", e);
+                warn!("Failed to reload config.toml: {e}");
                 Err(e)
             }
         }
@@ -189,8 +189,8 @@ fn highlight_diff(original: &str, formatted: &str) -> String {
     for change in changeset.diffs {
         match change {
             Difference::Same(s) => highlighted.push_str(&s),
-            Difference::Add(s) => highlighted.push_str(&format!("\x1b[32m{}\x1b[0m", s)),
-            Difference::Rem(s) => highlighted.push_str(&format!("\x1b[31m{}\x1b[0m", s)),
+            Difference::Add(s) => highlighted.push_str(&format!("\x1b[32m{s}\x1b[0m")),
+            Difference::Rem(s) => highlighted.push_str(&format!("\x1b[31m{s}\x1b[0m")),
         }
     }
     highlighted
@@ -203,7 +203,7 @@ fn main() -> Result<()> {
     let mut config_manager = ConfigManager::new()?;
     let mut clipboard_handler = ClipboardHandler::new().context("Failed to create clipboard handler")?;
     let (tx, rx) = channel();
-    let _watcher = setup_file_watcher(config_manager.get_config_path(), &config_manager.get_config(), tx)?;
+    let _watcher = setup_file_watcher(config_manager.get_config_path(), config_manager.get_config(), tx)?;
     
     let mut previous_clipboard_hash = 0u64;
     
@@ -222,7 +222,7 @@ fn main() -> Result<()> {
     }
 }
 
-fn setup_file_watcher(config_path: &PathBuf, config: &AppConfig, tx: std::sync::mpsc::Sender<notify::Result<notify::Event>>) -> Result<RecommendedWatcher> {
+fn setup_file_watcher(config_path: &Path, config: &AppConfig, tx: std::sync::mpsc::Sender<notify::Result<notify::Event>>) -> Result<RecommendedWatcher> {
     let notify_config = Config::default()
         .with_poll_interval(Duration::from_millis(config.app.config_reload_interval));
     let mut watcher: RecommendedWatcher =
@@ -243,20 +243,20 @@ fn handle_clipboard_processing(
             let current_hash = calculate_hash(&clipboard_content);
             if current_hash != previous_hash {
                 if let Err(e) = clipboard_handler.process_clipboard(config) {
-                    warn!("Failed to process clipboard: {}", e);
+                    warn!("Failed to process clipboard: {e}");
                 }
             }
             current_hash
         }
         Err(e) => {
-            warn!("Failed to get clipboard contents: {}", e);
+            warn!("Failed to get clipboard contents: {e}");
             match ClipboardHandler::new() {
                 Ok(new_handler) => {
                     *clipboard_handler = new_handler;
                     info!("Successfully recreated clipboard handler");
                 }
                 Err(e) => {
-                    warn!("Failed to recreate clipboard handler: {}", e);
+                    warn!("Failed to recreate clipboard handler: {e}");
                 }
             }
             previous_hash
