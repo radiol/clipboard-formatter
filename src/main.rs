@@ -2,11 +2,9 @@ use anyhow::{Context, Result};
 use clipboard::{ClipboardContext, ClipboardProvider};
 use difference::{Changeset, Difference};
 use env_logger::Builder as EnvLoggerBuilder;
-use log::info;
-use log::warn;
+use log::{info, warn};
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
 use regex::Regex;
-use std::char;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::env;
@@ -58,31 +56,66 @@ fn calculate_hash<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-fn get_config_dir() -> Result<PathBuf> {
-    let config_dir = if let Some(config_dir) = env::var_os("XDG_CONFIG_HOME") {
-        PathBuf::from(config_dir)
-    } else {
-        dirs::config_dir().context("Failed to get config directory")?
-    };
-    Ok(config_dir.join("clipboard-formatter"))
+struct ConfigManager {
+    config_path: PathBuf,
+    config: AppConfig,
 }
 
-fn create_default_config() -> Result<()> {
-    let config_dir = get_config_dir()?;
-    if !config_dir.exists() {
-        fs::create_dir_all(&config_dir).context("Failed to create config directory")?;
+impl ConfigManager {
+    fn new() -> Result<Self> {
+        let config_path = Self::get_config_path_static()?;
+        Self::create_default_config(&config_path)?;
+        let config = Self::load_config(&config_path)?;
+        Ok(Self { config_path, config })
     }
-    let config_path = config_dir.join(CONFIG_FILE_NAME);
-    if !config_path.exists() {
-        fs::write(&config_path, DEFAULT_CONFIG).context("Failed to create default config")?;
-        info!("Created default config: {}", config_path.display());
-    }
-    Ok(())
-}
 
-fn load_config(file_path: &str) -> Result<AppConfig> {
-    let text = fs::read_to_string(file_path)?;
-    toml::from_str(&text).context("Failed to parse config.toml")
+    fn get_config_path_static() -> Result<PathBuf> {
+        let config_dir = if let Some(config_dir) = env::var_os("XDG_CONFIG_HOME") {
+            PathBuf::from(config_dir)
+        } else {
+            dirs::config_dir().context("Failed to get config directory")?
+        };
+        Ok(config_dir.join("clipboard-formatter").join(CONFIG_FILE_NAME))
+    }
+
+    fn create_default_config(config_path: &PathBuf) -> Result<()> {
+        let config_dir = config_path.parent().unwrap();
+        if !config_dir.exists() {
+            fs::create_dir_all(config_dir).context("Failed to create config directory")?;
+        }
+        if !config_path.exists() {
+            fs::write(config_path, DEFAULT_CONFIG).context("Failed to create default config")?;
+            info!("Created default config: {}", config_path.display());
+        }
+        Ok(())
+    }
+
+    fn load_config(config_path: &PathBuf) -> Result<AppConfig> {
+        let text = fs::read_to_string(config_path)?;
+        toml::from_str(&text).context("Failed to parse config.toml")
+    }
+
+    fn reload_config(&mut self) -> Result<()> {
+        match Self::load_config(&self.config_path) {
+            Ok(new_config) => {
+                self.config = new_config;
+                info!("Reloaded config.toml");
+                Ok(())
+            }
+            Err(e) => {
+                warn!("Failed to reload config.toml: {}", e);
+                Err(e)
+            }
+        }
+    }
+
+    fn get_config(&self) -> &AppConfig {
+        &self.config
+    }
+
+    fn get_config_path(&self) -> &PathBuf {
+        &self.config_path
+    }
 }
 
 fn format_text(text: &str, replacements: &Replacements, exclusion_list: &[char]) -> Result<String> {
@@ -105,29 +138,49 @@ fn format_text(text: &str, replacements: &Replacements, exclusion_list: &[char])
     Ok(formatted_content)
 }
 
-fn create_clipboard_context() -> Result<ClipboardContext, ClipboardError> {
-    let mut ctx =
-        ClipboardContext::new().map_err(|e| ClipboardError::CreateContext(e.to_string()))?;
-    if ctx.get_contents().is_err() && ctx.set_contents("".to_string()).is_err() {
-        return Err(ClipboardError::CreateContext(
-            "Failed to set empty contents".to_string(),
-        ));
-    };
-    Ok(ctx)
+struct ClipboardHandler {
+    ctx: ClipboardContext,
 }
 
-fn set_clipboard_contents(
-    ctx: &mut ClipboardContext,
-    content: String,
-) -> Result<(), ClipboardError> {
-    ctx.set_contents(content)
-        .map_err(|e| ClipboardError::SetContents(e.to_string()))?;
-    Ok(())
-}
+impl ClipboardHandler {
+    fn new() -> Result<Self, ClipboardError> {
+        let mut ctx = ClipboardContext::new()
+            .map_err(|e| ClipboardError::CreateContext(e.to_string()))?;
+        if ctx.get_contents().is_err() && ctx.set_contents("".to_string()).is_err() {
+            return Err(ClipboardError::CreateContext(
+                "Failed to set empty contents".to_string(),
+            ));
+        }
+        Ok(Self { ctx })
+    }
 
-fn get_clipboard_contents(ctx: &mut ClipboardContext) -> Result<String, ClipboardError> {
-    ctx.get_contents()
-        .map_err(|e| ClipboardError::GetContents(e.to_string()))
+    fn set_contents(&mut self, content: String) -> Result<(), ClipboardError> {
+        self.ctx.set_contents(content)
+            .map_err(|e| ClipboardError::SetContents(e.to_string()))
+    }
+
+    fn get_contents(&mut self) -> Result<String, ClipboardError> {
+        self.ctx.get_contents()
+            .map_err(|e| ClipboardError::GetContents(e.to_string()))
+    }
+
+    fn process_clipboard(&mut self, config: &AppConfig) -> Result<(), ClipboardError> {
+        let clipboard_content = self.get_contents()?;
+        let formatted_content = format_text(
+            &clipboard_content,
+            &config.replacements,
+            config.exclusions.get("exclusions").unwrap_or(&vec![]),
+        ).map_err(|e| ClipboardError::GetContents(e.to_string()))?;
+        
+        if clipboard_content != formatted_content {
+            info!(
+                "Formatted\n{}",
+                highlight_diff(&clipboard_content, &formatted_content)
+            );
+            self.set_contents(formatted_content)?;
+        }
+        Ok(())
+    }
 }
 
 fn highlight_diff(original: &str, formatted: &str) -> String {
@@ -146,108 +199,89 @@ fn highlight_diff(original: &str, formatted: &str) -> String {
 fn main() -> Result<()> {
     show_self_version();
     EnvLoggerBuilder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    create_default_config()?;
-
-    let app_config_path = get_config_dir()?.join(CONFIG_FILE_NAME);
-    let mut app_config = load_config(
-        app_config_path
-            .to_str()
-            .context("Failed to convert path to string")?,
-    )
-    .context("Failed to load config")?;
-
+    
+    let mut config_manager = ConfigManager::new()?;
+    let mut clipboard_handler = ClipboardHandler::new().context("Failed to create clipboard handler")?;
     let (tx, rx) = channel();
-    let notify_config = Config::default()
-        .with_poll_interval(Duration::from_millis(app_config.app.config_reload_interval));
-    let mut watcher: RecommendedWatcher =
-        Watcher::new(tx.clone(), notify_config).context("Failed to initialize file watcher")?;
-    watcher
-        .watch(&app_config_path, RecursiveMode::NonRecursive)
-        .context("Failed to watch config file")?;
-    let mut ctx: ClipboardContext =
-        create_clipboard_context().context("Failed to create context")?;
-
+    let _watcher = setup_file_watcher(config_manager.get_config_path(), &config_manager.get_config(), tx)?;
+    
     let mut previous_clipboard_hash = 0u64;
-
+    
     loop {
-        // Get clipboard content with better error handling
-        match get_clipboard_contents(&mut ctx) {
-            Ok(clipboard_content) => {
-                let current_clipboard_hash = calculate_hash(&clipboard_content);
-                if current_clipboard_hash != previous_clipboard_hash {
-                    if let Ok(formatted_content) = format_text(
-                        &clipboard_content,
-                        &app_config.replacements,
-                        app_config.exclusions.get("exclusions").unwrap_or(&vec![]),
-                    ) {
-                        if clipboard_content != formatted_content {
-                            info!(
-                                "Formatted\n{}",
-                                highlight_diff(&clipboard_content, &formatted_content)
-                            );
-                            // Don't crash if setting clipboard fails
-                            if let Err(e) = set_clipboard_contents(&mut ctx, formatted_content) {
-                                warn!("Failed to set clipboard contents: {}", e);
-                            }
-                        }
-                    } else {
-                        warn!("Failed to format clipboard text");
-                    }
-                    previous_clipboard_hash = current_clipboard_hash;
-                }
-            }
-            Err(e) => {
-                warn!("Failed to get clipboard contents: {}", e);
-                // If clipboard access fails, recreate the clipboard context
-                match create_clipboard_context() {
-                    Ok(new_ctx) => {
-                        ctx = new_ctx;
-                        info!("Successfully recreated clipboard context");
-                    }
-                    Err(e) => {
-                        warn!("Failed to recreate clipboard context: {}", e);
-                        // Wait a bit longer before retrying when clipboard is inaccessible
-                        thread::sleep(Duration::from_millis(
-                            app_config.app.clipboard_poll_interval,
-                        ));
-                    }
-                }
-            }
-        }
-
-        // Check for file changes
-        match rx.try_recv() {
-            Ok(events) => {
-                for event in events.iter() {
-                    if event.paths.contains(&app_config_path) {
-                        match load_config(app_config_path.to_str().unwrap()) {
-                            Ok(new_config) => {
-                                app_config = new_config;
-                                info!("Reloaded config.toml");
-                            }
-                            Err(e) => warn!("Failed to reload config.toml: {}", e),
-                        }
-                    }
-                }
-            }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {
-                // No events, continue normally
-            }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                warn!("File watcher disconnected, attempting to reconnect");
-                if let Ok(new_watcher) = Watcher::new(tx.clone(), notify_config) {
-                    watcher = new_watcher;
-                    watcher.watch(&app_config_path, RecursiveMode::NonRecursive)?;
-                } else {
-                    warn!("Failed to recreate file watcher");
-                }
-            }
-        }
-
-        // Sleep to prevent high CPU usage
+        previous_clipboard_hash = handle_clipboard_processing(
+            &mut clipboard_handler,
+            config_manager.get_config(),
+            previous_clipboard_hash,
+        );
+        
+        handle_config_reload(&mut config_manager, &rx);
+        
         thread::sleep(Duration::from_millis(
-            app_config.app.clipboard_poll_interval,
+            config_manager.get_config().app.clipboard_poll_interval,
         ));
+    }
+}
+
+fn setup_file_watcher(config_path: &PathBuf, config: &AppConfig, tx: std::sync::mpsc::Sender<notify::Result<notify::Event>>) -> Result<RecommendedWatcher> {
+    let notify_config = Config::default()
+        .with_poll_interval(Duration::from_millis(config.app.config_reload_interval));
+    let mut watcher: RecommendedWatcher =
+        Watcher::new(tx, notify_config).context("Failed to initialize file watcher")?;
+    watcher
+        .watch(config_path, RecursiveMode::NonRecursive)
+        .context("Failed to watch config file")?;
+    Ok(watcher)
+}
+
+fn handle_clipboard_processing(
+    clipboard_handler: &mut ClipboardHandler,
+    config: &AppConfig,
+    previous_hash: u64,
+) -> u64 {
+    match clipboard_handler.get_contents() {
+        Ok(clipboard_content) => {
+            let current_hash = calculate_hash(&clipboard_content);
+            if current_hash != previous_hash {
+                if let Err(e) = clipboard_handler.process_clipboard(config) {
+                    warn!("Failed to process clipboard: {}", e);
+                }
+            }
+            current_hash
+        }
+        Err(e) => {
+            warn!("Failed to get clipboard contents: {}", e);
+            match ClipboardHandler::new() {
+                Ok(new_handler) => {
+                    *clipboard_handler = new_handler;
+                    info!("Successfully recreated clipboard handler");
+                }
+                Err(e) => {
+                    warn!("Failed to recreate clipboard handler: {}", e);
+                }
+            }
+            previous_hash
+        }
+    }
+}
+
+fn handle_config_reload(
+    config_manager: &mut ConfigManager,
+    rx: &std::sync::mpsc::Receiver<notify::Result<notify::Event>>,
+) {
+    match rx.try_recv() {
+        Ok(events) => {
+            for event in events.iter() {
+                if event.paths.contains(config_manager.get_config_path()) {
+                    let _ = config_manager.reload_config();
+                }
+            }
+        }
+        Err(std::sync::mpsc::TryRecvError::Empty) => {
+            // No events, continue normally
+        }
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            warn!("File watcher disconnected");
+        }
     }
 }
 
@@ -256,7 +290,6 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
 
-    // Test for get_config_dir
     use std::env;
     use tempfile::tempdir;
 
@@ -269,8 +302,8 @@ mod tests {
         // 一時ディレクトリをXDG_CONFIG_HOMEに設定
         env::set_var("XDG_CONFIG_HOME", &temp_path);
 
-        // create_default_config()を呼び出す
-        create_default_config().unwrap();
+        // ConfigManagerを作成
+        let _config_manager = ConfigManager::new().unwrap();
 
         // 設定ファイルが正しい場所に作成されたかを確認
         let config_path = temp_path.join("clipboard-formatter").join("config.toml");
@@ -412,7 +445,6 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    // Test for clipboard-formatter
     use clipboard::{ClipboardContext, ClipboardProvider};
 
     #[test]
