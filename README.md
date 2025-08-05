@@ -7,6 +7,7 @@
 - クリップボードの文字列を監視し、全角文字を半角へ変換。
 - カスタマイズ可能な置換ルールと除外リスト。
 - 設定ファイルの変更をリアルタイムで検知し、即座に反映。
+- **NEW v0.2.0**: 「前回」を含む行の重複削除機能（4行以上のテキストで、上3行中に「前回」を含む行が2つ以上ある場合、2番目に出現する行を削除）
 
 ## インストール
 
@@ -53,14 +54,34 @@ Windows向け(exe)はダブルクリックで起動できます。
 設定ファイルの保存場所は、以下の通りです：
 
 - `XDG_CONFIG_HOME`が設定されていれば: `$XDG_CONFIG_HOME/clipboard-formatter/config.toml`
-- Linux: `~/.config/clipboard-formatter/config.toml`
-- MacOS: `/Users/{User}/Library/Application Support/clipboard-formatter/config.toml`
+- Linux / macOS: `~/.config/clipboard-formatter/config.toml`
 - Windows: `C:\Users\{User}\AppData\Roaming\clipboard-formatter\config.toml`
 
 ## 設定の変更方法
 
 1. `config.toml`をエディタで開き、必要な設定を編集します。
 2. 保存すると、自動的に変更が検知され、新しい設定が反映されます。
+
+### v0.2.0の新機能設定
+
+「前回」行削除機能を有効にするには、設定ファイルで以下を変更してください：
+
+```toml
+[app]
+remove_duplicate_previous_lines = true  # デフォルトはfalse
+```
+
+**重要**: v0.1.xからv0.2.0へのアップデート時は、既存の設定ファイルを手動で削除してから起動してください。新しい設定項目が追加されているため、既存の設定ファイルでは起動時にエラーが発生する可能性があります。
+
+```bash
+# macOS / Linux
+rm -f ~/.config/clipboard-formatter/config.toml
+
+# Windows
+del "%APPDATA%\clipboard-formatter\config.toml"
+```
+
+その後、アプリケーションを起動すると新しい設定ファイルが自動生成されます。
 
 ## 開発とテスト
 

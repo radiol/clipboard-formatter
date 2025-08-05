@@ -2,6 +2,7 @@
 [app]
 clipboard_poll_interval = 300
 config_reload_interval = 5000
+remove_duplicate_previous_lines = false
 
 # 置換ルール
 # "original" = "replacement"
