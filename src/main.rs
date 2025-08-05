@@ -27,6 +27,8 @@ fn show_self_version() {
 struct AppSettings {
     clipboard_poll_interval: u64,
     config_reload_interval: u64,
+    #[serde(default)]
+    remove_duplicate_previous_lines: bool,
 }
 
 type Replacements = HashMap<String, String>;
@@ -123,6 +125,39 @@ impl ConfigManager {
     }
 }
 
+fn remove_duplicate_previous_lines(text: &str) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+
+    if lines.len() < 4 {
+        return text.to_string();
+    }
+
+    let first_three_lines = &lines[..3];
+
+    let previous_line_indices: Vec<usize> = first_three_lines
+        .iter()
+        .enumerate()
+        .filter_map(|(i, line)| {
+            if line.contains("前回") {
+                Some(i)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if previous_line_indices.len() < 2 {
+        return text.to_string();
+    }
+
+    // 2番目に出現する「前回」を含む行を削除
+    let mut result_lines = lines.clone();
+    let second_index = previous_line_indices[1];
+    result_lines.remove(second_index);
+
+    result_lines.join("\n")
+}
+
 fn format_text(text: &str, replacements: &Replacements, exclusion_list: &[char]) -> Result<String> {
     let mut formatted_content = text.to_string();
     for (original, replacement) in replacements.iter() {
@@ -173,8 +208,15 @@ impl ClipboardHandler {
 
     fn process_clipboard(&mut self, config: &AppConfig) -> Result<(), ClipboardError> {
         let clipboard_content = self.get_contents()?;
+
+        let mut processed_content = clipboard_content.clone();
+
+        if config.app.remove_duplicate_previous_lines {
+            processed_content = remove_duplicate_previous_lines(&processed_content);
+        }
+
         let formatted_content = format_text(
-            &clipboard_content,
+            &processed_content,
             &config.replacements,
             config.exclusions.get("exclusions").unwrap_or(&vec![]),
         )
@@ -460,6 +502,164 @@ mod tests {
         // 変更された削除された'A'が赤色、追加された'B'が緑色で表示される
         let expected = "\x1b[31mA\x1b[0m\x1b[32mB\x1b[0m string";
         assert_eq!(result, expected);
+    }
+
+    // Tests for remove_duplicate_previous_lines function
+    #[test]
+    fn test_user_defined_remove_duplicate_previous_lines() {
+        // 複数の「前回」が含まれる場合、2番目の「前回」を削除する
+        let input = "前回1\n前回2\n前回3\n前回4";
+        let expected = "前回1\n前回3\n前回4";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_user_defined_remove_duplicate_previous_lines_with_another_word() {
+        // 複数の「前回」が含まれる場合、2番目に出現する「前回」を削除する
+        let input = "前回1\n胸部CT\n前回2\n前回3\n前回4";
+        let expected = "前回1\n胸部CT\n前回3\n前回4";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_user_defined_remove_duplicate_previous_lines_with_no_duplicates() {
+        // 3行以下の場合は削除されない
+        let input = "前回1\n前回2\n前回3";
+        let expected = "前回1\n前回2\n前回3";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_user_defined_remove_duplicate_previous_lines_with_empty_lines() {
+        // 削除が適用されるのは3行目までに含まれる場合
+        let input = "前回1\n胸部CT\n\n前回CTで認められた";
+        let expected = "前回1\n胸部CT\n\n前回CTで認められた";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_four_lines_two_duplicates_in_first_three() {
+        let input =
+            "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています\n第4回目の内容";
+        let expected = "第1回目の内容\n前回の結果は良好でした\n第4回目の内容";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_five_lines_two_duplicates_in_first_three() {
+        let input = "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています\n第4回目の内容\n第5回目の内容";
+        let expected = "第1回目の内容\n前回の結果は良好でした\n第4回目の内容\n第5回目の内容";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_four_lines_one_duplicate() {
+        let input = "第1回目の内容\n前回の結果は良好でした\n第2回目の内容\n第4回目の内容";
+        let expected = "第1回目の内容\n前回の結果は良好でした\n第2回目の内容\n第4回目の内容";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_four_lines_no_duplicates() {
+        let input = "第1回目の内容\n第2回目の内容\n第3回目の内容\n第4回目の内容";
+        let expected = "第1回目の内容\n第2回目の内容\n第3回目の内容\n第4回目の内容";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_less_than_four_lines() {
+        let input = "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています";
+        let expected = "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_empty_string() {
+        let input = "";
+        let expected = "";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_single_line() {
+        let input = "前回の結果";
+        let expected = "前回の結果";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_remove_duplicate_previous_lines_four_lines_first_and_third_with_previous() {
+        let input =
+            "前回の結果は良好でした\n第2回目の内容\n前回の課題が残っています\n第4回目の内容";
+        let expected = "前回の結果は良好でした\n第2回目の内容\n第4回目の内容";
+        let result = remove_duplicate_previous_lines(input);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_process_clipboard_with_remove_duplicate_previous_lines_enabled() {
+        let replacements = HashMap::new();
+        let exclusions = HashMap::new();
+        let app_settings = AppSettings {
+            clipboard_poll_interval: 300,
+            config_reload_interval: 5000,
+            remove_duplicate_previous_lines: true,
+        };
+        let config = AppConfig {
+            app: app_settings,
+            replacements,
+            exclusions,
+        };
+
+        let input =
+            "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています\n第4回目の内容";
+        let expected = "第1回目の内容\n前回の結果は良好でした\n第4回目の内容";
+
+        let processed = remove_duplicate_previous_lines(input);
+        let formatted = format_text(&processed, &config.replacements, &[]).unwrap();
+
+        assert_eq!(formatted, expected);
+    }
+
+    #[test]
+    fn test_process_clipboard_with_remove_duplicate_previous_lines_disabled() {
+        let replacements = HashMap::new();
+        let exclusions = HashMap::new();
+        let app_settings = AppSettings {
+            clipboard_poll_interval: 300,
+            config_reload_interval: 5000,
+            remove_duplicate_previous_lines: false,
+        };
+        let config = AppConfig {
+            app: app_settings,
+            replacements,
+            exclusions,
+        };
+
+        let input =
+            "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています\n第4回目の内容";
+        let expected =
+            "第1回目の内容\n前回の結果は良好でした\n前回の課題が残っています\n第4回目の内容";
+
+        let processed = if config.app.remove_duplicate_previous_lines {
+            remove_duplicate_previous_lines(input)
+        } else {
+            input.to_string()
+        };
+        let formatted = format_text(&processed, &config.replacements, &[]).unwrap();
+
+        assert_eq!(formatted, expected);
     }
 
     use clipboard::{ClipboardContext, ClipboardProvider};
