@@ -302,19 +302,7 @@ fn handle_clipboard_processing(
             }
             current_hash
         }
-        Err(e) => {
-            warn!("Failed to get clipboard contents: {e}");
-            match ClipboardHandler::new() {
-                Ok(new_handler) => {
-                    *clipboard_handler = new_handler;
-                    info!("Successfully recreated clipboard handler");
-                }
-                Err(e) => {
-                    warn!("Failed to recreate clipboard handler: {e}");
-                }
-            }
-            previous_hash
-        }
+        Err(_) => previous_hash,
     }
 }
 
