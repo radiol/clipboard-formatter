@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] - 2026-05-15
+
+### 🚀 Features
+
+- Apply replacements iteratively until stable
+
+### 🐛 Bug Fixes
+
+- Add iteration limit to prevent infinite replacement loops
+
 ## [0.2.1] - 2026-05-13
 
 ### Bug Fixes
