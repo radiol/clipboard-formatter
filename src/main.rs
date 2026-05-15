@@ -211,6 +211,8 @@ impl ClipboardHandler {
         }
 
         let mut pre_content = String::new();
+        let max_iterations = 10;
+        let mut iteration = 0;
 
         while pre_content != processed_content {
             pre_content = processed_content.clone();
@@ -220,6 +222,11 @@ impl ClipboardHandler {
                 config.exclusions.get("exclusions").unwrap_or(&vec![]),
             )
             .map_err(|e| ClipboardError::GetContents(e.to_string()))?;
+            iteration += 1;
+            if iteration >= max_iterations {
+                warn!("Reached maximum number of iterations");
+                break;
+            }
         }
 
         if clipboard_content != processed_content {
