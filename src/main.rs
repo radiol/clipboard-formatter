@@ -210,19 +210,24 @@ impl ClipboardHandler {
             processed_content = remove_duplicate_previous_lines(&processed_content);
         }
 
-        let formatted_content = format_text(
-            &processed_content,
-            &config.replacements,
-            config.exclusions.get("exclusions").unwrap_or(&vec![]),
-        )
-        .map_err(|e| ClipboardError::GetContents(e.to_string()))?;
+        let mut pre_content = String::new();
 
-        if clipboard_content != formatted_content {
+        while pre_content != processed_content {
+            pre_content = processed_content.clone();
+            processed_content = format_text(
+                &pre_content,
+                &config.replacements,
+                config.exclusions.get("exclusions").unwrap_or(&vec![]),
+            )
+            .map_err(|e| ClipboardError::GetContents(e.to_string()))?;
+        }
+
+        if clipboard_content != processed_content {
             info!(
                 "Formatted\n{}",
-                highlight_diff(&clipboard_content, &formatted_content)
+                highlight_diff(&clipboard_content, &processed_content)
             );
-            self.set_contents(formatted_content)?;
+            self.set_contents(processed_content)?;
         }
         Ok(())
     }
